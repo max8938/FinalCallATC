@@ -69,6 +69,7 @@ AI and Azure API access is not hard to set up. Costs: max couple of dozen cents 
 - Make a flight/navigation plan. In case you are deleting the old plan, always manually re-select your origin as well (even though the game seems to do it)
 - Start the flight
 - Say "start session" to ATC. This will: attach ATC app to Aerofly to read radio panel state, start receiving telemetry, delete old radio log file and update it with the new flight plan. It will also reduce Aerofly volume in Windows sound mixer, to better hear the radio.
+- The list of valid frequencies will be in your flight plan on top of Radio Log document. (also available: guard at 121.50 and center at 134.00)
 - If you change the flight plan (want to start a new flight), say "reset session", it will reload everything.
 - If you speak on freq with no listening stations, you will hear radio static. If you speak to a station but do not enable that radio in the audio panel, they will hear you but you will hear just 2 warning tones.
 
