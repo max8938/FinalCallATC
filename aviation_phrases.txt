@@ -1,0 +1,67 @@
+Cessna
+Cleared to land
+Cleared for takeoff
+Line up and wait
+Hold short
+Taxi to runway
+Runway
+QNH
+VOR
+ILS
+Squawk
+Ident
+Altitude
+Airspeed
+Heading
+Frequency
+Descend
+maintain
+Climb
+Turn left heading
+Turn right heading
+Go around
+Field in sight
+Contact tower
+Monitor ground
+Hold position
+Ready for departure
+Cross runway
+Traffic in sight
+Negative contact
+Say again
+Unable
+Wilco
+Roger
+Affirmative
+Negative
+Standby
+Over and out
+Pushback approved
+Ready for pushback
+Request taxi
+Request takeoff
+Request landing
+Inbound for landing
+Inbound on final
+Holding short
+Departing now
+Rolling
+Cleared through airspace
+Cleared direct
+VFR flight following
+Switching frequency
+Maintain VFR
+Maintain separation
+Contact approach
+Contact departure
+On the go
+Overhead the field
+Visual approach
+Instrument approach
+ILS approach
+Ground
+Tower
+Approach
+Departure
+Base turn complete
+Turning final
