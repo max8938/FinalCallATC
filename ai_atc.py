@@ -371,30 +371,27 @@ def getReachableFrequencies():
 	# Create list of reachable frequencies considering the plane location, airport size and radio range
 
 	# Get list of frequencies at origin and destination airports
-	# Estimate airport size based on number of frequencies
 	
 	allFrequencies = []
 	origFreqs = get_airport_frequencies(aeroflySettings.origin_name)
+	origAirportType = get_airport_size(aeroflySettings.origin_name)
 	origAirportSizeModifier = 1.0
-	if len(origFreqs) >= 7:
-		origAirportSizeModifier = 1.0 # large airport
-	elif len(origFreqs) >= 4:
-		origAirportSizeModifier = 0.7 # medium airport
-	elif len(origFreqs) >= 2:
-		origAirportSizeModifier = 0.5 # small airport
+	if origAirportType == "large_airport":
+		origAirportSizeModifier = 1.0 
+	elif origAirportType == "medium_airport":
+		origAirportSizeModifier = 0.6 
 	else:
-		origAirportSizeModifier = 0.3 # tiny airport
+		origAirportSizeModifier = 0.3 
 
 	destFreqs = get_airport_frequencies(aeroflySettings.destination_name)
+	destAirportType = get_airport_size(aeroflySettings.destination_name)
 	destAirportSizeModifier = 1.0
-	if len(destFreqs) >= 7:
-		destAirportSizeModifier = 1.0 # large airport
-	elif len(origFreqs) >= 4:
-		destAirportSizeModifier = 0.7 # medium airport
-	elif len(origFreqs) >= 2:
-		destAirportSizeModifier = 0.5 # small airport
+	if destAirportType == "large_airport":
+		destAirportSizeModifier = 1.0 
+	elif destAirportType == "medium_airport":
+		destAirportSizeModifier = 0.6
 	else:
-		destAirportSizeModifier = 0.3 # tiny airport
+		destAirportSizeModifier = 0.3
 	
 	# Add reachable frequencies from origin
 	distanceFromOrigin = getDistanceToLocation(aeroflySettings.origin_airport_latitude, aeroflySettings.origin_airport_longitude)
@@ -1424,13 +1421,19 @@ def safe_shutdown():
 		print("Shutting down OpenVR")
 		openvr.shutdown()
 
-# Function to get airport name by ICAO code
+# Get airport name by ICAO code
 def get_airport_name(icao_code):
-	global airports
 	icao_code = icao_code.upper()
 	for airport in airports:
 		if airport.get("icao").upper() == icao_code:
 			return airport.get("name")
+	return ''  # If not found
+
+def get_airport_size(icao_code):
+	icao_code = icao_code.upper()
+	for airport in airports:
+		if airport.get("icao").upper() == icao_code:
+			return airport.get("type")
 	return ''  # If not found
 
 def get_airport_frequencies(icao_code):
