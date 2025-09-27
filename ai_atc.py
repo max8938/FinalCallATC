@@ -1378,7 +1378,7 @@ def startPlayingATIS(airportCode, atisPlayingOn):
 	global atcSoundCOM2
 
 	atisPlayingOnRadio = atisPlayingOn
-	atisPlaying = True
+	
 
 	COM1VolumeOutput = 0.7
 	COM2VolumeOutput = 0.7
@@ -1391,12 +1391,14 @@ def startPlayingATIS(airportCode, atisPlayingOn):
 			atcSoundCOM1.stop()
 		atcSoundCOM1 = pygame.mixer.Sound(atisFilename)
 		atcSoundCOM1.set_volume(COM1VolumeOutput)
+		atisPlaying = True
 		atcChannelCOM1 = atcSoundCOM1.play(loops=-1)
 	elif atisPlayingOnRadio == "COM2":
 		if atcSoundCOM2 is not None:
 			atcSoundCOM2.stop()
 		atcSoundCOM2 = pygame.mixer.Sound(atisFilename)
 		atcSoundCOM2.set_volume(COM2VolumeOutput)
+		atisPlaying = True
 		atcChannelCOM2 = atcSoundCOM2.play(loops=-1)
 	else:
 		print("Unknown receiving radio, not playing ATIS sound: ", atisPlayingOnRadio)
@@ -1581,17 +1583,17 @@ def writeRadioLogToFile():
 
 # Create radio chatter between other pilots and ATC
 def createRadioExchange():
-	print("Creating radio exchange...")
+	global chatterTimer
 	if RADIO_CHATTER_PROBABILITY == 0.0:
-		threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 		return
 	
 	clearTempFolder("chatter")
 	
-	# Only if no user communication with AI ongoing
-	if communicationWithAIInProgress:
+	# Only if no user communication with AI ongoing or ATIS playback
+	if communicationWithAIInProgress or atisPlaying:
 		print("Communication with AI ongoing, not creating radio exchange")
-		threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 		return
 	
 	reachableFrequencies = getReachableFrequencies()
@@ -1601,7 +1603,7 @@ def createRadioExchange():
 		randomStation = random.choice(reachableFrequencies)
 	if not randomStation:
 		print("No reachable frequencies found, not creating radio exchange")
-		threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start() # do this again in XX seconds
+		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start() # do this again in XX seconds
 		return
 
 	# Decide with random chance whether to generate an exchange or not
@@ -1611,17 +1613,17 @@ def createRadioExchange():
 	randomNum = float(random.randint(0, 100))
 	if RADIO_CHATTER_PROBABILITY * airportSizeModifier <= randomNum:
 		print("Skipping radio exchange generation due to probability setting (rnd=" + str(randomNum) + ", airportSizeModifier=" + str(airportSizeModifier) + ", RADIO_CHATTER_PROBABILITY * airportSizeModifier=" + str(RADIO_CHATTER_PROBABILITY * airportSizeModifier))
-		threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 		return
 
 	# Check if the radio is active on audio panel
 	if randomStation["receivingRadio"] == "COM1" and not radioPanel.COM1AudioSelectButton:
 		print("Skipping radio exchange generation, COM1 not active on audio panel")
-		threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 		return
 	elif randomStation["receivingRadio"] == "COM2" and not radioPanel.COM2AudioSelectButton:
 		print("Skipping radio exchange generation, COM2 not active on audio panel")
-		threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 		return
 
 	prompt = "Create a single exchange between a pilot and ATC (airport: " + randomStation["airport"] + ", airport size: " + randomStation["airportType"] + ", ATC service/frequency description: " + randomStation["description"] + "). "
@@ -1640,9 +1642,9 @@ def createRadioExchange():
 	response = trafficChatSession.get_response()
 
 	# Check again if user is communicating
-	if communicationWithAIInProgress:
+	if communicationWithAIInProgress or atisPlaying:
 		print("Communication with AI ongoing, discarding radio exchange")
-		threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 		return
 
 	aiTrafficGenerationResponse = AITrafficGenerationResponse(response)
@@ -1655,24 +1657,24 @@ def createRadioExchange():
 		time.sleep(3)
 
 		# Check again if user is communicating
-		if communicationWithAIInProgress:
+		if communicationWithAIInProgress or atisPlaying:
 			print("Communication with AI ongoing, discarding second message of radio exchange")
-			threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+			chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 			return
 
 		# Check again if the radio is active on audio panel
 		if randomStation["receivingRadio"] == "COM1" and not radioPanel.COM1AudioSelectButton:
 			print("Skipping second chatter message, COM1 not active on audio panel")
-			threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+			chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 			return
 		elif randomStation["receivingRadio"] == "COM2" and not radioPanel.COM2AudioSelectButton:
 			print("Skipping second chatter message, COM2 not active on audio panel")
-			threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+			chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 			return
 
 		sayWithRadioEffect(aiTrafficGenerationResponse.message2Entity, aiTrafficGenerationResponse.message2Text, randomStation["receivingRadio"], True, "chatter")
 	
-	threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start() # do this again in XX seconds
+	chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start() # do this again in XX seconds
 
 
 def deleteRadioLogFiles():
