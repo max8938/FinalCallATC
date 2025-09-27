@@ -178,6 +178,7 @@ root = None
 button_held = False
 radioButtonHeld = False
 auxButtonOn = False
+chatterTimer = None
 
 recognizer_thread = None
 recognizer_controller = None
@@ -645,7 +646,10 @@ def startATCSession():
 		radioPanel.start_polling(GAME_VARIABLES_POLLING_INTERVAL)
 	
 	atcSessionStarted = True
-	threading.Timer(10, createRadioExchange).start() # Generate radio chatter
+	global chatterTimer
+	if chatterTimer:
+		chatterTimer.cancel()
+	chatterTimer = threading.Timer(10, createRadioExchange).start() # Generate radio chatter
 
 def resetATCSession():
 	global chatSession
@@ -658,8 +662,17 @@ def resetATCSession():
 	print("AI ATC SESSION RESET command")
 	say("ATC session reset")
 	writeRadioLogToFile()
-	threading.Timer(10, createRadioExchange).start() # Generate radio chatter
+	global chatterTimer
+	if chatterTimer:
+		chatterTimer.cancel()
+	chatterTimer = threading.Timer(10, createRadioExchange).start() # Generate radio chatter
 
+def stopATCSession():
+	say("ATC session stopped.")
+	global chatterTimer
+	if chatterTimer:
+		chatterTimer.cancel()
+	
 def recognized_handler(evt):
 	trySendingMessage(evt.result.text)		
 			
@@ -676,6 +689,9 @@ def trySendingMessage(message):
 		return
 	elif cleanedtext.lower().startswith("start session"):
 		startATCSession()
+		return
+	elif cleanedtext.lower().startswith("stop session"):
+		stopATCSession()
 		return
 			
 	if len(cleanedtext) < 7:
@@ -1528,7 +1544,9 @@ def writeRadioLogToFile():
 
 # Create radio chatter between other pilots and ATC
 def createRadioExchange():
+	print("Creating radio exchange...")
 	if RADIO_CHATTER_PROBABILITY == 0.0:
+		threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 		return
 	
 	clearTempFolder("chatter")
