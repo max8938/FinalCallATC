@@ -40,42 +40,7 @@ class Attitude:
         self.roll_degrees = roll_degrees
         self.timestamp = datetime.now()
 
-    @property
-    def true_heading(self) -> float:
-        return self._true_heading
-
-    @true_heading.setter
-    def true_heading(self, value: float):
-        if not (0 <= value <= 360):
-            raise ValueError("True heading must be between 0� and 360�.")
-        self._true_heading = value
-
-    @property
-    def pitch_degrees(self) -> float:
-        return self._pitch_degrees
-
-    @pitch_degrees.setter
-    def pitch_degrees(self, value: float):
-        if not (-90 <= value <= 90):
-            raise ValueError("Pitch must be between -90� and +90�.")
-        self._pitch_degrees = value
-
-    @property
-    def roll_degrees(self) -> float:
-        return self._roll_degrees
-
-    @roll_degrees.setter
-    def roll_degrees(self, value: float):
-        if not (-180 <= value <= 180):
-            raise ValueError("Roll must be between -180� and +180�.")
-        self._roll_degrees = value
-        
-    @property
-    def timestamp(self) -> datetime:
-        return self._timestamp
-        
-    def timestamp(self, value: datetime):
-        self._timestamp = value
+    
 
     def __repr__(self) -> str:
         return (

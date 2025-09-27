@@ -103,8 +103,31 @@ MSSPEECH_API_REGION=None
 OPENAI_API_KEY = None
 
 
-ATC_INIT_INSTRUCTIONS="I want you to roleplay ATC in my flight sim. I will send you plane attitude and location updates, and you should use that info to communicate with me in the same way a real ATC would. Do not make up any telemetry like altitude, heading and airspeed; use only data received from me. If you see me make an error or not follow instructions, you will warn me as an atc would do. If I do not communicate as expected, you should warn me about that as well. Format your response as JSON, except when calling a tool/function. The response should contain what ATC says to me (without any other comments) in ATC_VOICE variable. You can send blank ATC_VOICE variable if there is nothing new that needs to be communicated to the pilot. Put any comments or notes in COMMENTS variable. Telemetry updates will contain a timestamp, which you should use to determine if I am on the right path for the stated destination, altitude, elapsed time, etc. If readback from pilot is required for the instructions sent by ATC, write 15 in READBACK_TIMEOUT variable, this is the timeout in seconds. If you do not receive a correct readback after READBACK_TIMEOUT elapses, ask for a radio check or if I copy. Put the name of the entity you are representing, like Paris Tower, in variable ENTITY. Put the frequency of the sender in FREQUENCY variable, or 0 if unknown. If I deviate from ATC instructions behave as real ATC would. If any numbers are typically read digit by digit, write them using letters, not digits. Output only pure JSON-compliant text, do not use any markdown code. Ignore small mispronunciations on my side. Do not give takeoff clearance until I confirm that I am holding at runway. When I request vector or a heading, keep in mind what is my current location and heading in order to calculate the correct vector. If I read back another heading, assume that yours was incorrect and that mine is correct. Ignore minor deviations from the agreed heading, speed, altitude, etc. Do not tell me which heading to take, I will tell you where I am heading and you will just make sure that I am approximately following that heading. Warn me if I am entering protected airspace without authorization. If I do not respond to urgent messages, try sending them on guard frequency 121.5 MHz. Always respond on the same frequency that I sent the message on, including guard frequency. Always respond as the entity on that frequency, not another one. Use function get_heading_to_approach_point to get the heading and the distance to the destination approach point. AFIS service does not issue clearances, only advisories."
+ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will send you plane attitude and location updates, and you should use that info to communicate with me in the same way a real ATC would. 
+- Do not make up any telemetry like altitude, heading and airspeed; use only data received from me. 
+- If you see me make an error or not follow instructions, you will warn me as an atc would do. 
+- If I do not communicate as expected, you should warn me about that as well. 
+- Format your response as JSON, except when calling a tool/function. The response should contain what ATC says to me (without any other comments) in ATC_VOICE variable. You can send blank ATC_VOICE variable if there is nothing new that needs to be communicated to the pilot. Output only pure JSON-compliant text, do not use any markdown code.
+- Put any comments or notes in COMMENTS variable.  
+- If readback from pilot is required for the instructions sent by ATC, write 15 in READBACK_TIMEOUT variable, this is the timeout in seconds. Do not say that readback is required. If you do not receive a correct readback after READBACK_TIMEOUT elapses, ask for a radio check or if I copy. 
+- Put the name of the entity you are representing, like Paris Tower, in variable ENTITY. 
+- Put the frequency of the sender in FREQUENCY variable, or 0 if unknown. 
+- If I deviate from ATC instructions behave as real ATC would. 
+- If any numbers are typically read digit by digit, write them using letters, not digits.  
+- Ignore small mispronunciations on my side. 
+- Do not give takeoff clearance until I confirm that I am holding at runway. 
+- When I request vector or a heading, keep in mind what is my current location and heading in order to calculate the correct vector. If I read back another heading, assume that yours was incorrect and that mine is correct. 
+- Ignore minor deviations from the agreed heading, speed, altitude, etc. 
+- Warn me if I am entering protected airspace without authorization. 
+- If I do not respond to urgent messages, try sending them on guard frequency 121.5 MHz. 
+- Always respond on the same frequency that I sent the message on, including guard frequency. 
+- Always respond as the entity on that frequency, not another one. 
+- Use function get_heading_to_approach_point to get the heading and the distance to the destination approach point. 
+- AFIS service does not issue clearances, only advisories. 
+- React to my transponder code appropriately."""
 ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = ""
+
+RADIO_CHATTER_GENERATION_PROMPT = "When I ask, you will generate a single exchange between a pilot and ATC. It should be relevant considering the description of the ATC frequency. It can be initiated either by the pilot or the ATC.  Output as JSON dictionary with keys MESSAGE1_ENTITY, MESSAGE2_ENTITY (names of the entities sending the messages, like: pilot, berlin ground, paris tower), MESSAGE1_TEXT and MESSAGE2_TEXT (contents of the radio messages). Do not put anything else in JSON. Use any worldwide airline if on big airport and random callsigns/flight numbers. For medium airports, use regional companies. For small airfields, use just GA callsigns.Do not repeat same requests from same entities. AFIS service does not issue clearances, only advisories."
 
 FEET_IN_METER = 3.28084
 
@@ -397,6 +420,7 @@ def getReachableFrequencies():
 	distanceFromOrigin = getDistanceToLocation(aeroflySettings.origin_airport_latitude, aeroflySettings.origin_airport_longitude)
 	for freq in origFreqs:
 		freq["airport"] = get_airport_name(aeroflySettings.origin_name)
+		freq["airportType"] = origAirportType
 		freq["airportSizeModifier"] = origAirportSizeModifier
 		freq["receivingRadio"] = radioTunedToFrequency(round(float(freq["frequency_mhz"]),2))
 		if len(freq["receivingRadio"]) > 0:
@@ -410,6 +434,7 @@ def getReachableFrequencies():
 	distanceFromDestination = getDistanceToLocation(aeroflySettings.destination_airport_latitude, aeroflySettings.destination_airport_longitude)
 	for freq in destFreqs:
 		freq["airport"] = get_airport_name(aeroflySettings.destination_name)
+		freq["airportType"] = destAirportType
 		freq["airportSizeModifier"] = destAirportSizeModifier
 		freq["receivingRadio"] = radioTunedToFrequency(round(float(freq["frequency_mhz"]),2))
 		if len(freq["receivingRadio"]) > 0:
@@ -424,6 +449,7 @@ def getReachableFrequencies():
         "airport": "",
 		"description": "GUARD",
         "frequency_mhz": 121.50,
+		"airportType": "large_airport",
         "airportSizeModifier": "0.01"
       }
 	guardFreq["receivingRadio"] = canMessageBeHeard(round(float(guardFreq["frequency_mhz"]),2))
@@ -434,6 +460,7 @@ def getReachableFrequencies():
         "airport": "",
 		"description": "CENTER",
         "frequency_mhz": 134.00,
+		"airportType": "large_airport",
         "airportSizeModifier": "1.0"
       }
 	centerFreq["receivingRadio"] = canMessageBeHeard(round(float(centerFreq["frequency_mhz"]),2))
@@ -1436,6 +1463,13 @@ def get_airport_size(icao_code):
 			return airport.get("type")
 	return ''  # If not found
 
+def get_airport_country(icao_code):
+	icao_code = icao_code.upper()
+	for airport in airports:
+		if airport.get("icao").upper() == icao_code:
+			return airport.get("iso_country")
+	return ''  # If not found
+
 def get_airport_frequencies(icao_code):
     icao_code = icao_code.upper()
     for airport in airports:
@@ -1590,17 +1624,17 @@ def createRadioExchange():
 		threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 		return
 
-	prompt = "Create a single exchange between a pilot and ATC (airport: " + randomStation["airport"] + ", ATC service/frequency description: " + randomStation["description"] + "), relevant considering the description of the ATC frequency. It can be initiated either by the pilot or the ATC.  Output as JSON dictionary with keys MESSAGE1_ENTITY, MESSAGE2_ENTITY (names of the entities sending the messages, like: pilot, berlin ground, paris tower), MESSAGE1_TEXT and MESSAGE2_TEXT (contents of the radio messages). Do not put anything else in JSON. Use any worldwide airline if on big airport and random callsigns/flight numbers. For medium airports, use regional companies. For small airfields, use just GA callsigns.Do not repeat same requests from same entities. AFIS service does not issue clearances, only advisories. "
+	prompt = "Create a single exchange between a pilot and ATC (airport: " + randomStation["airport"] + ", airport size: " + randomStation["airportType"] + ", ATC service/frequency description: " + randomStation["description"] + "). "
 	
 	if gameTelemetry and gameTelemetry.current_location:
-		prompt += "When speaking as Center, consider the current location: latitude: " + str(gameTelemetry.current_location.latitude) + ", longitude: " + str(gameTelemetry.current_location.longitude) + "."
+		prompt += "If speaking as Center, it should be center ATC close to the current location: latitude: " + str(gameTelemetry.current_location.latitude) + ", longitude: " + str(gameTelemetry.current_location.longitude) + "."
 	else:
-		prompt += "When speaking as Center, do not mention current location, as it is unknown."
+		prompt += "If speaking as Center, do not mention current location, as it is unknown."
 
 	# Init AI session
 	global trafficChatSession
 	if not trafficChatSession:
-		trafficChatSession = ChatSession(" ", aiTools=None)
+		trafficChatSession = ChatSession(RADIO_CHATTER_GENERATION_PROMPT, aiTools=None)
 
 	trafficChatSession.add_user_message(prompt)
 	response = trafficChatSession.get_response()
@@ -1619,6 +1653,12 @@ def createRadioExchange():
 
 		# Speak the second message after a delay. 
 		time.sleep(3)
+
+		# Check again if user is communicating
+		if communicationWithAIInProgress:
+			print("Communication with AI ongoing, discarding second message of radio exchange")
+			threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+			return
 
 		# Check again if the radio is active on audio panel
 		if randomStation["receivingRadio"] == "COM1" and not radioPanel.COM1AudioSelectButton:
