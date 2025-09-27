@@ -29,7 +29,7 @@ This is still a work in progress, the code is far from stellar, but it works :)
 **Requirements:**
 - Windows for full functionalities. Most work on Mac as well, except radio panel controls; ATC can be controlled via its app window.
 - Python (v3.13 works fine for me) + all needed libraries installed
-- Deep Seek or OpenAI AI API access (Deep Seek gives much better responses, in my experience, but might be a bit slower)
+- Deep Seek or OpenAI AI API access (Deep Seek gives a bit better responses, in my experience, but might be a bit slower)
 - Azure voice services API access
 - (optional) OpenVR for PTT control via VR controller
 - (optional) OpenKneeboard (or similar overlay app) for displaying radio log files in flatscreen and VR
