@@ -122,8 +122,7 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - If I do not respond to urgent messages, try sending them on guard frequency 121.5 MHz. 
 - Always respond on the same frequency that I sent the message on, including guard frequency. 
 - Always respond as the entity on that frequency, not another one. 
-- Use function get_heading_to_approach_point to get the heading and the distance to the destination approach point. 
-- AFIS service does not issue clearances, only advisories. 
+- AFIS service does not issue clearances, only advisories. Pilots tell say their intentions on that frequency and not ask for clearances.
 - React to my transponder code appropriately."""
 ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = ""
 
@@ -308,6 +307,9 @@ def call_function(name, args):
 # AI tool
 def get_heading_to_approach_point(current_latitude, current_longitude):
 	print("calculate_heading called")
+	return getHeadingToLocation(current_latitude, current_longitude, aeroflySettings.approach_start_latitude, aeroflySettings.approach_start_longitude)
+
+def getHeadingToLocation(currentLatitude, currentLongitude, destLatitude, destLongitude):
 	"""
 	Calculate the initial bearing (heading) from current position to target position.
 
@@ -324,15 +326,12 @@ def get_heading_to_approach_point(current_latitude, current_longitude):
 		>>> calculate_heading(37.7749, -122.4194, 34.0522, -118.2437)
 		135.23  # Heading from San Francisco to Los Angeles
 	"""
-	if current_latitude is None or current_longitude is None:
-		return "Unable to calculate heading."
-
-	global aeroflySettings
+	
 	# Convert degrees to radians
-	lat1 = math.radians(float(current_latitude))
-	lon1 = math.radians(float(current_longitude))
-	lat2 = math.radians(aeroflySettings.approach_start_latitude)
-	lon2 = math.radians(aeroflySettings.approach_start_longitude)
+	lat1 = math.radians(currentLatitude)
+	lon1 = math.radians(currentLongitude)
+	lat2 = math.radians(destLatitude)
+	lon2 = math.radians(destLongitude)
 
 	# Calculate the differences
 	dlon = lon2 - lon1
@@ -348,19 +347,63 @@ def get_heading_to_approach_point(current_latitude, current_longitude):
 	bearing_deg = math.degrees(bearing_rad)
 	heading = (bearing_deg + 360) % 360
 
-	distanceToDestination = getDistanceToLocation(aeroflySettings.approach_start_latitude, aeroflySettings.approach_start_longitude)
-
-	return "Heading to destination: " + str(int(heading)) + " degrees, distance to destination: " + str(int(distanceToDestination)) + " nautical miles."
+	return heading
 
 
-def getDistanceToLocation(destLatitude, destLongitude):
+def getRelativePositionDescription():
+	if not gameTelemetry or not gameTelemetry.current_location or not gameTelemetry.current_location:
+		return "unknown position"
+	
+	# Get relative position of the plane to the destination airport
+	currentLatitude = gameTelemetry.current_location.latitude
+	currentLongitude = gameTelemetry.current_location.longitude
+	distanceToDestination = getDistanceToLocation(currentLatitude, currentLongitude, aeroflySettings.destination_airport_latitude, aeroflySettings.destination_airport_longitude)
+	distancetoOrigin = getDistanceToLocation(currentLatitude, currentLongitude, aeroflySettings.origin_airport_latitude, aeroflySettings.origin_airport_longitude)
+	headingToDestination = getHeadingToLocation(currentLatitude, currentLongitude, aeroflySettings.destination_airport_latitude, aeroflySettings.destination_airport_longitude)
+	headingToOrigin = getHeadingToLocation(currentLatitude, currentLongitude, aeroflySettings.origin_airport_latitude, aeroflySettings.origin_airport_longitude)
+
+	description = "Heading to destination: " + str(int(headingToDestination)) + " degrees, distance to destination: " + str(int(distanceToDestination)) + " nm, relative position to destination: " + bearingToDirection(headingToDestination) + ". "
+	description += "Heading to origin: " + str(int(headingToOrigin)) + " degrees, distance to origin: " + str(int(distancetoOrigin)) + " nm, relative position to origin: " + bearingToDirection(headingToOrigin) + "."
+
+	return description
+
+def bearingToDirection(heading_deg: float) -> str:
+    """
+    Convert a heading to a location (degrees) into a relative cardinal direction 
+    (from that location back to you).
+    """
+    # Step 1: Compute reciprocal bearing
+    reciprocal = (heading_deg + 180) % 360
+
+    # Step 2: Define compass sectors
+    directions = [
+        ("N",   337.5, 360.0),
+        ("N",     0.0, 22.5),
+        ("NE",   22.5, 67.5),
+        ("E",    67.5, 112.5),
+        ("SE",  112.5, 157.5),
+        ("S",   157.5, 202.5),
+        ("SW",  202.5, 247.5),
+        ("W",   247.5, 292.5),
+        ("NW",  292.5, 337.5),
+    ]
+
+    # Step 3: Find matching direction
+    for dir_name, start, end in directions:
+        if start <= reciprocal < end:
+            return dir_name
+
+    # Just in case (should never happen)
+    return "Unknown"
+
+def getDistanceToLocation(currentLatitude, currentLongitude, destLatitude, destLongitude):
 	# Calculate distance in nautical miles between two lat/lon points using Haversine formula
 	if not gameTelemetry or not gameTelemetry.current_location or not gameTelemetry.current_location:
 		return 0.0
 		
 	R = 6371.0  # Earth radius in kilometers
-	lat1 = math.radians(gameTelemetry.current_location.latitude)
-	lon1 = math.radians(gameTelemetry.current_location.longitude)
+	lat1 = math.radians(currentLatitude)
+	lon1 = math.radians(currentLongitude)
 	lat2 = math.radians(destLatitude)
 	lon2 = math.radians(destLongitude)
 	dlon = lon2 - lon1
@@ -415,9 +458,17 @@ def getReachableFrequencies():
 		destAirportSizeModifier = 0.6
 	else:
 		destAirportSizeModifier = 0.3
+
+	currentLatitude = 0.0
+	currentLongitude = 0.0
+	if gameTelemetry and gameTelemetry.current_location:
+		currentLatitude = gameTelemetry.current_location.latitude
+		currentLongitude = gameTelemetry.current_location.longitude
 	
-	# Add reachable frequencies from origin
-	distanceFromOrigin = getDistanceToLocation(aeroflySettings.origin_airport_latitude, aeroflySettings.origin_airport_longitude)
+	# Add reachable frequencies from origin. If current location is unknown, station reach will be ignored
+	distanceFromOrigin = 0.0
+	if not (currentLongitude == 0.0 and currentLatitude == 0.0):
+		distanceFromOrigin = getDistanceToLocation(currentLatitude, currentLongitude, aeroflySettings.origin_airport_latitude, aeroflySettings.origin_airport_longitude)
 	for freq in origFreqs:
 		freq["airport"] = get_airport_name(aeroflySettings.origin_name)
 		freq["airportType"] = origAirportType
@@ -430,8 +481,10 @@ def getReachableFrequencies():
 			elif RADIO_REACH["OTHER"] >= distanceFromOrigin:
 				allFrequencies.append(freq)
 	
-	# Add reachable frequencies from destination
-	distanceFromDestination = getDistanceToLocation(aeroflySettings.destination_airport_latitude, aeroflySettings.destination_airport_longitude)
+	# Add reachable frequencies from destination. If current location is unknown, station reach will be ignored
+	distanceFromDestination = 0.0
+	if not (currentLongitude == 0.0 and currentLatitude == 0.0):
+		distanceFromDestination = getDistanceToLocation(currentLatitude, currentLongitude, aeroflySettings.destination_airport_latitude, aeroflySettings.destination_airport_longitude)
 	for freq in destFreqs:
 		freq["airport"] = get_airport_name(aeroflySettings.destination_name)
 		freq["airportType"] = destAirportType
@@ -609,16 +662,19 @@ def sendMessageToAI(cleanedtext):
 			transponderCode = str(int(radioPanel.TransponderCode))
 			transponderInfo = ", squawk: " + transponderCode
 		if  transponderMode == "ALT" and currentAltitude > 0:
-			transponderInfo += ", altitude " + str(int(currentAltitude)) + " feet"
+			transponderInfo += ", altitude " + str(int(currentAltitude)) + " feet. "
 
 	transmittingFrequency = pilotTransmittingFrequency()
 	telemetryMessage = "Airplane telemetry: "
 	telemetryMessage += currentHeading + currentLocation + currentGroundspeed + transponderInfo
 	
 	if transmittingFrequency > 0:
-		telemetryMessage += ", transmitting on " + str(transmittingFrequency) + "MHz"
+		telemetryMessage += ", Transmitting on " + str(transmittingFrequency) + "MHz. "
 	else:
-		telemetryMessage += ", transmitting on the right frequency. "
+		telemetryMessage += ", Transmitting on the right frequency. "
+
+	telemetryMessage += getRelativePositionDescription()
+	
 	
 	
 	chatSession.add_user_message(timestamp + " " + telemetryMessage) # this sends telemetry together with voice
@@ -656,7 +712,7 @@ def startATCSession():
 	global atcSessionStarted
 
 	loadAeroflySettings() # reload Aerofly settings
-	chatSession = ChatSession(ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, ATC_AI_TOOLS)
+	chatSession = ChatSession(ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, None)
 	deleteRadioLogFiles()
 	entityVoices = {}
 	print("AI ATC SESSION START command")
@@ -680,7 +736,7 @@ def resetATCSession():
 	global entityVoices
 	loadAeroflySettings() # reload Aerofly settings
 	#chatSession.reset_session()
-	chatSession = ChatSession(ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, ATC_AI_TOOLS)
+	chatSession = ChatSession(ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, None)
 	deleteRadioLogFiles()
 	entityVoices = {}
 	print("AI ATC SESSION RESET command")
