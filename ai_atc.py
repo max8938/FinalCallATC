@@ -6,8 +6,8 @@
 TELEMETRY_SEND_INTERVAL=60.0 
 
 RADIO_CHATTER_TIMER = 15.0 # How often will system attempt to create radio chatter between other stations, in seconds
-RADIO_CHATTER_PROBABILITY = 100.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
-# For smaller airports (less frequencies), the chatter will be generated a bit less often. Chatter on GUARD (121.5) is rare and frequent on CENTER (134.0).
+RADIO_CHATTER_PROBABILITY = 80.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
+# For smaller airports (less frequencies), the chatter will be generated a bit less often. Chatter on GUARD (121.5) is rare, and frequent on CENTER (134.0).
 
 # Which AI service to use
 AI_TYPE = "OPENROUTER" # Possible values: "DEEPSEEK", "OPENAI", "OPENROUTER"
@@ -20,7 +20,7 @@ OPENROUTER_MODEL = "deepseek/deepseek-chat-v3.1" # deepseek/deepseek-chat-v3.1 m
 OPENROUTER_PROVIDER_SORT = "throughput" # Possible values: "cost", "latency", "throughput"
 
 
-# Enable interaction with the radio panel (COM1/COM2 frequencies, audio routing, transponder)
+# Enable interaction with the radio panel (COM1/COM2 volumes and frequencies, audio routing, transponder)
 # Currently suported only on Windows, for Cessna 172 and Baron 58 in Aerofly FS4
 ENABLE_RADIO_PANEL = True
 
@@ -33,6 +33,8 @@ VR_CONTROLLER_BUTTON_ID = 1
 from telemetry import Telemetry, Attitude, Location
 import RadioPanel
 import mcfparser
+import airport_diagrams_generator
+
 import glob
 
 import pygame
@@ -45,7 +47,7 @@ from datetime import datetime
 import random
 import math
 from dotenv import load_dotenv
-
+import shutil
 
 import tkinter as tk
 import tkinter.ttk as ttk
@@ -1104,9 +1106,6 @@ def send_telemetry_update():
 """
 
 
-
-
-
 def controllerInputListen():
 	# Initialize OpenVR
 	try:
@@ -1313,6 +1312,11 @@ def loadAeroflySettings():
 		
 		generateATISRecording(aeroflySettings.origin_name, originAirportName, None, aeroflySettings.departure_runway, aeroflySettings.wind_strength, aeroflySettings.wind_direction_in_degree, aeroflySettings.visibility)
 		generateATISRecording(aeroflySettings.destination_name, destinationAirportName, None, aeroflySettings.destination_runway, aeroflySettings.wind_strength, aeroflySettings.wind_direction_in_degree, aeroflySettings.visibility)
+
+		# Generate airport diagrams
+		thread = threading.Thread(target=generateAirportDiagrams, daemon=True)
+		thread.start()
+		
 
 	except FileNotFoundError:
 		print("Error: main.mcf file not found")
@@ -1767,6 +1771,26 @@ def createRadioExchange():
 	
 	chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start() # do this again in XX seconds
 
+def generateAirportDiagrams():
+	if not aeroflySettings:
+		print("Aerofly settings not loaded, cannot generate airport diagrams")
+		return
+	
+	if not aeroflySettings.origin_name or not aeroflySettings.destination_name:
+		print("Origin or destination airport not set, cannot generate airport diagrams")
+		return
+	
+	# Origin airport
+	originDiagramPath = airport_diagrams_generator.generateAirportDiagram(aeroflySettings.origin_name)
+	if originDiagramPath:
+		genericOriginFileName = os.path.join("AirportDiagrams", "origin_airport_diagram.pdf")
+		shutil.copy2(originDiagramPath, genericOriginFileName)
+	
+	# Destination airport
+	destinationDiagramPath = airport_diagrams_generator.generateAirportDiagram(aeroflySettings.destination_name)
+	if destinationDiagramPath:
+		genericDestinationFileName = os.path.join("AirportDiagrams", "destination_airport_diagram.pdf")
+		shutil.copy2(destinationDiagramPath, genericDestinationFileName)
 
 def deleteRadioLogFiles():
 	file_path = "RadioLog.pdf"
@@ -1878,6 +1902,8 @@ def main():
 		print("Mac platform detected, some features may not work (radio panel, volume controls).")
 
 	clearTempFolder()
+
+	
 
 	# Load environment variables with API keys
 	load_dotenv()
