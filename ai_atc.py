@@ -9,16 +9,20 @@ RADIO_CHATTER_TIMER = 15.0 # How often will system attempt to create radio chatt
 RADIO_CHATTER_PROBABILITY = 100.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
 # For smaller airports (less frequencies), the chatter will be generated a bit less often. Chatter on GUARD (121.5) is rare and frequent on CENTER (134.0).
 
-# Set to true to use DeepSeek AI, or False to use OpenAI. At the moment, DeepSeek creates a bit better conversation but takes 2-3 seconds more to respond.
-USE_DEEPSEEK = True
+# Which AI service to use
+AI_TYPE = "OPENROUTER" # Possible values: "DEEPSEEK", "OPENAI", "OPENROUTER"
 
 # AI models to use
 DEEPSEEK_MODEL = "deepseek-chat"
 OPENAI_MODEL = "gpt-4.1-mini"
+#OPENAI_MODEL = "gpt-4o-mini" # This one does not create as good responses as gpt-4.1-mini or deepseek
+OPENROUTER_MODEL = "deepseek/deepseek-chat-v3.1" # deepseek/deepseek-chat-v3.1 model so far has good performance and answers
+OPENROUTER_PROVIDER_SORT = "throughput" # Possible values: "cost", "latency", "throughput"
+
 
 # Enable interaction with the radio panel (COM1/COM2 frequencies, audio routing, transponder)
 # Currently suported only on Windows, for Cessna 172 and Baron 58 in Aerofly FS4
-ENABLE_RADIO_PANEL = False
+ENABLE_RADIO_PANEL = True
 
 # VR controller mapping for Push to Talk. Assume controller 1 is at device index 1.
 VR_CONTROLLER_INDEX = 1
@@ -101,16 +105,18 @@ DEEPSEEK_API_KEY = None
 MSSPEECH_API_KEY=None
 MSSPEECH_API_REGION=None
 OPENAI_API_KEY = None
+OPENROUTER_API_KEY = None
 
 
 ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will send you plane attitude and location updates, and you should use that info to communicate with me in the same way a real ATC would. 
 - Do not make up any telemetry like altitude, heading and airspeed; use only data received from me. 
 - If you see me make an error or not follow instructions, you will warn me as an atc would do. 
 - If I do not communicate as expected, you should warn me about that as well. 
+- Use the information about my origin and destination airport, and frequencies available at those airports, to choose as which entity you will communicate with me, and use names like 'Milan Tower" and 'Barcelona Ground', not airport codes.
 - Format your response as JSON, except when calling a tool/function. The response should contain what ATC says to me (without any other comments) in ATC_VOICE variable. You can send blank ATC_VOICE variable if there is nothing new that needs to be communicated to the pilot. Output only pure JSON-compliant text, do not use any markdown code.
 - Put any comments or notes in COMMENTS variable.  
 - If readback from pilot is required for the instructions sent by ATC, write 15 in READBACK_TIMEOUT variable, this is the timeout in seconds. Do not say that readback is required. If you do not receive a correct readback after READBACK_TIMEOUT elapses, ask for a radio check or if I copy. 
-- Put the name of the entity you are representing, like Paris Tower, in variable ENTITY. 
+- Put the name of the entity you are representing, like Paris Tower, in variable ENTITY. Answer only as entity on the frequency, not as another entity. 
 - Put the frequency of the sender in FREQUENCY variable, or 0 if unknown. 
 - If I deviate from ATC instructions behave as real ATC would. 
 - If any numbers are typically read digit by digit, write them using letters, not digits.  
@@ -208,10 +214,23 @@ recognizer_controller = None
 class ChatSession:
 	def __init__(self, system_prompt=ATC_INIT_INSTRUCTIONS, aiTools=None):
 		# Start with a system prompt to set the assistant's behavior
+		"""
 		if USE_DEEPSEEK == True:
 			self.client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
 		else:
 			self.client = OpenAI(api_key=OPENAI_API_KEY)
+			"""
+
+		if AI_TYPE == "DEEPSEEK":
+			self.client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
+		elif AI_TYPE == "OPENROUTER":
+			self.client = OpenAI(api_key=OPENROUTER_API_KEY, base_url="https://openrouter.ai/api/v1")
+		elif AI_TYPE == "OPENAI":
+			self.client = OpenAI(api_key=OPENAI_API_KEY)
+		else:
+			print("Unknown AI_TYPE ", AI_TYPE, ", not creating AI session.")
+			return
+
 		self.messages = [{"role": "system", "content": system_prompt}]
 				
 		self.tools = aiTools
@@ -230,15 +249,29 @@ class ChatSession:
 		
     
 	def get_response(self): #model="deepseek-chat"):
-		if USE_DEEPSEEK == True:
+		if AI_TYPE == "DEEPSEEK":
 			model=DEEPSEEK_MODEL
-		else:
+		elif AI_TYPE == "OPENROUTER":
+			model=OPENROUTER_MODEL
+		elif AI_TYPE == "OPENAI":
 			model=OPENAI_MODEL
+		else:
+			print("Unknown AI_TYPE ", AI_TYPE, ", not sending message to AI.")
+			return
+		
+		start = time.time()	
 		response = self.client.chat.completions.create(
 			model=model,
 			messages=self.messages,
-			tools=self.tools
+			tools=self.tools,
+			extra_body={
+				"provider": {
+					"sort": OPENROUTER_PROVIDER_SORT
+				}
+			}
 		)
+		end = time.time()
+		print(f"AI response time: {end - start:.2f} seconds")
 		#print(response)
 		global parsedAIResponse
 		finish_reason = response.choices[0].finish_reason
@@ -1266,9 +1299,9 @@ def loadAeroflySettings():
 			". Wind strength in knots is " + str(aeroflySettings.wind_strength) +
 			". My aircraft model is " + aeroflySettings.aircraft_model +
 			". My flight plan is: cruise altitude " + str(int(aeroflySettings.cruise_altitude)) + " feet. " + 
-			". Origin airport: " + aeroflySettings.origin_name + " (" + originAirportName + ", frequencies:" + originAirportFrequencies + ")" +
+			". Origin airport code: " + aeroflySettings.origin_name + ", origin airport name: " + originAirportName + "(frequencies:" + originAirportFrequencies + ")" +
 			". Departure runway: "  + aeroflySettings.departure_runway + 
-			". Destination airport: " + aeroflySettings.destination_name + " (" + destinationAirportName + ", frequencies:" + destinationAirportFrequencies + ")" +
+			". Destination airport code: " + aeroflySettings.destination_name + ", destination airport name: " + destinationAirportName + "(frequencies:" + destinationAirportFrequencies + ")" +
 			". Destination runway latitude: "  + str(aeroflySettings.destination_runway_latitude) +
 			". Destination runway longitude: "  + str(aeroflySettings.destination_runway_longitude) +
 			". Destination runway: "  + aeroflySettings.destination_runway +
@@ -1706,6 +1739,8 @@ def createRadioExchange():
 	aiTrafficGenerationResponse = AITrafficGenerationResponse(response)
 
 	if aiTrafficGenerationResponse and aiTrafficGenerationResponse.message1Entity and aiTrafficGenerationResponse.message1Text and aiTrafficGenerationResponse.message2Entity and aiTrafficGenerationResponse.message2Text:
+		print("Generated chatter: ", aiTrafficGenerationResponse.message1Entity, ": ", aiTrafficGenerationResponse.message1Text , " / ", aiTrafficGenerationResponse.message2Entity, ": ", aiTrafficGenerationResponse.message2Text)
+		
 		# Speak the first message
 		sayWithRadioEffect(aiTrafficGenerationResponse.message1Entity, aiTrafficGenerationResponse.message1Text, randomStation["receivingRadio"], True, "chatter")
 
@@ -1846,11 +1881,12 @@ def main():
 
 	# Load environment variables with API keys
 	load_dotenv()
-	global DEEPSEEK_API_KEY, MSSPEECH_API_KEY, MSSPEECH_API_REGION, OPENAI_API_KEY
+	global DEEPSEEK_API_KEY, MSSPEECH_API_KEY, MSSPEECH_API_REGION, OPENAI_API_KEY, OPENROUTER_API_KEY
 	DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY") 
 	MSSPEECH_API_KEY=os.environ.get("MSSPEECH_API_KEY") 
 	MSSPEECH_API_REGION=os.environ.get("MSSPEECH_API_REGION")
 	OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY")
+	OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
 	
 	# Create app window
 	createAppWindow()
