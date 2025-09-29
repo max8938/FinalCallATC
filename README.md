@@ -25,6 +25,7 @@ This is still a work in progress, the code is far from stellar, but it works :)
 - Radio log & more detailed logs saved as PDF files, can be displayed in cockpit using 3rd-party tools.
 - Flight plan summary displayed on top of radio log (origin, destination, runways, altitudes, radio frequencies).
 - ATIS generated looping messages for origin and destination (if ATIS is available there).
+- Airport diagrams for origin and destination are generated in AirportDiagrams subfolder, to be optionally displayed in cockpit.
 
 **Requirements:**
 - Windows for full functionalities. Most work on Mac as well, except radio panel controls; ATC can be controlled via its app window.
