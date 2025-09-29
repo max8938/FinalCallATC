@@ -18,7 +18,7 @@ OPENAI_MODEL = "gpt-4.1-mini"
 
 # Enable interaction with the radio panel (COM1/COM2 frequencies, audio routing, transponder)
 # Currently suported only on Windows, for Cessna 172 and Baron 58 in Aerofly FS4
-ENABLE_RADIO_PANEL = True
+ENABLE_RADIO_PANEL = False
 
 # VR controller mapping for Push to Talk. Assume controller 1 is at device index 1.
 VR_CONTROLLER_INDEX = 1
@@ -55,7 +55,7 @@ from pydub import AudioSegment, effects
 
 from pydub.generators import WhiteNoise
 
-from reportlab.lib.pagesizes import A4, letter
+from reportlab.lib.pagesizes import A4, A5, letter, landscape
 from reportlab.pdfgen import canvas
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
@@ -1540,14 +1540,14 @@ def get_airport_frequencies(icao_code):
 # Write to PDF file
 def write_lines_with_paragraph(pdf_path, lines, firstLineInBold, withFlightPlan):
 	# Define margins in millimeters
-	left_margin = 10 * mm    # 10mm
-	right_margin = 10 * mm   # 10mm  
-	top_margin = 10 * mm     # 10mm
-	bottom_margin = 10 * mm  # 10mm
+	left_margin =7 * mm    
+	right_margin = 7 * mm   
+	top_margin = 7 * mm     
+	bottom_margin = 7 * mm  
     
 	doc = SimpleDocTemplate(
 		pdf_path, 
-		pagesize=A4,
+		pagesize=landscape(A5),
 		leftMargin=left_margin,
 		rightMargin=right_margin,
 		topMargin=top_margin,
@@ -1585,9 +1585,9 @@ def write_lines_with_paragraph(pdf_path, lines, firstLineInBold, withFlightPlan)
 			story.append(Paragraph(line, flight_plan_style))
 		elif (firstLineInBold and cnt == 4): #first line after flight plan = latest ATC message
 			story.append(Paragraph(line, courier_bold_style))
-			story.append(Paragraph("", courier_style))
+			story.append(Spacer(1, 12))
 			story.append(Paragraph("-" * 20, courier_style))
-			story.append(Paragraph("", courier_style))
+			
 		else:
 			story.append(Paragraph(line, courier_style))
 		story.append(Spacer(1, 12))
@@ -1673,11 +1673,11 @@ def createRadioExchange():
 		return
 
 	# Check if the radio is active on audio panel
-	if randomStation["receivingRadio"] == "COM1" and not radioPanel.COM1AudioSelectButton:
+	if radioPanel and randomStation["receivingRadio"] == "COM1" and not radioPanel.COM1AudioSelectButton:
 		print("Skipping radio exchange generation, COM1 not active on audio panel")
 		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 		return
-	elif randomStation["receivingRadio"] == "COM2" and not radioPanel.COM2AudioSelectButton:
+	elif radioPanel and randomStation["receivingRadio"] == "COM2" and not radioPanel.COM2AudioSelectButton:
 		print("Skipping radio exchange generation, COM2 not active on audio panel")
 		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 		return
@@ -1719,11 +1719,11 @@ def createRadioExchange():
 			return
 
 		# Check again if the radio is active on audio panel
-		if randomStation["receivingRadio"] == "COM1" and not radioPanel.COM1AudioSelectButton:
+		if radioPanel and randomStation["receivingRadio"] == "COM1" and not radioPanel.COM1AudioSelectButton:
 			print("Skipping second chatter message, COM1 not active on audio panel")
 			chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 			return
-		elif randomStation["receivingRadio"] == "COM2" and not radioPanel.COM2AudioSelectButton:
+		elif radioPanel and randomStation["receivingRadio"] == "COM2" and not radioPanel.COM2AudioSelectButton:
 			print("Skipping second chatter message, COM2 not active on audio panel")
 			chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
 			return
