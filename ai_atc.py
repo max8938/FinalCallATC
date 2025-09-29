@@ -764,7 +764,8 @@ def startATCSession():
 	global chatterTimer
 	if chatterTimer:
 		chatterTimer.cancel()
-	chatterTimer = threading.Timer(10, createRadioExchange).start() # Generate radio chatter
+	chatterTimer = threading.Timer(10, createRadioExchange)
+	chatterTimer.start() # Generate radio chatter
 
 def resetATCSession():
 	global chatSession
@@ -780,7 +781,8 @@ def resetATCSession():
 	global chatterTimer
 	if chatterTimer:
 		chatterTimer.cancel()
-	chatterTimer = threading.Timer(10, createRadioExchange).start() # Generate radio chatter
+	chatterTimer = threading.Timer(10, createRadioExchange)
+	chatterTimer.start() # Generate radio chatter
 
 def stopATCSession():
 	say("ATC session stopped.")
@@ -1678,7 +1680,8 @@ def writeRadioLogToFile():
 def createRadioExchange():
 	global chatterTimer
 	if RADIO_CHATTER_PROBABILITY == 0.0:
-		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
+		chatterTimer.start() 
 		return
 	
 	clearTempFolder("chatter")
@@ -1686,7 +1689,8 @@ def createRadioExchange():
 	# Only if no user communication with AI ongoing or ATIS playback
 	if communicationWithAIInProgress or atisPlaying:
 		print("Communication with AI ongoing, not creating radio exchange")
-		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
+		chatterTimer.start() 
 		return
 	
 	reachableFrequencies = getReachableFrequencies()
@@ -1696,7 +1700,8 @@ def createRadioExchange():
 		randomStation = random.choice(reachableFrequencies)
 	if not randomStation:
 		print("No reachable frequencies found, not creating radio exchange")
-		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start() # do this again in XX seconds
+		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
+		chatterTimer.start() 
 		return
 
 	# Decide with random chance whether to generate an exchange or not
@@ -1706,17 +1711,20 @@ def createRadioExchange():
 	randomNum = float(random.randint(0, 100))
 	if RADIO_CHATTER_PROBABILITY * airportSizeModifier <= randomNum:
 		print("Skipping radio exchange generation due to probability setting (rnd=" + str(randomNum) + ", airportSizeModifier=" + str(airportSizeModifier) + ", RADIO_CHATTER_PROBABILITY * airportSizeModifier=" + str(RADIO_CHATTER_PROBABILITY * airportSizeModifier))
-		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
+		chatterTimer.start() 
 		return
 
 	# Check if the radio is active on audio panel
 	if radioPanel and randomStation["receivingRadio"] == "COM1" and not radioPanel.COM1AudioSelectButton:
 		print("Skipping radio exchange generation, COM1 not active on audio panel")
-		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
+		chatterTimer.start() 
 		return
 	elif radioPanel and randomStation["receivingRadio"] == "COM2" and not radioPanel.COM2AudioSelectButton:
 		print("Skipping radio exchange generation, COM2 not active on audio panel")
-		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
+		chatterTimer.start() 
 		return
 
 	prompt = "Create a single exchange between a pilot and ATC (airport: " + randomStation["airport"] + ", airport size: " + randomStation["airportType"] + ", ATC service/frequency description: " + randomStation["description"] + "). "
@@ -1737,7 +1745,8 @@ def createRadioExchange():
 	# Check again if user is communicating
 	if communicationWithAIInProgress or atisPlaying:
 		print("Communication with AI ongoing, discarding radio exchange")
-		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
+		chatterTimer.start() 
 		return
 
 	aiTrafficGenerationResponse = AITrafficGenerationResponse(response)
@@ -1754,22 +1763,26 @@ def createRadioExchange():
 		# Check again if user is communicating
 		if communicationWithAIInProgress or atisPlaying:
 			print("Communication with AI ongoing, discarding second message of radio exchange")
-			chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+			chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
+			chatterTimer.start() 
 			return
 
 		# Check again if the radio is active on audio panel
 		if radioPanel and randomStation["receivingRadio"] == "COM1" and not radioPanel.COM1AudioSelectButton:
 			print("Skipping second chatter message, COM1 not active on audio panel")
-			chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+			chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
+			chatterTimer.start() 
 			return
 		elif radioPanel and randomStation["receivingRadio"] == "COM2" and not radioPanel.COM2AudioSelectButton:
 			print("Skipping second chatter message, COM2 not active on audio panel")
-			chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start()
+			chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
+			chatterTimer.start() 
 			return
 
 		sayWithRadioEffect(aiTrafficGenerationResponse.message2Entity, aiTrafficGenerationResponse.message2Text, randomStation["receivingRadio"], True, "chatter")
 	
-	chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange).start() # do this again in XX seconds
+	chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
+	chatterTimer.start() 
 
 def generateAirportDiagrams():
 	if not aeroflySettings:
@@ -1941,7 +1954,7 @@ def main():
 	#keep_audio_session_alive_sounddevice()
 	
 	# Modify volume of Aerofly app, to better align it with volume of this app
-	setAeroflyVolume()
+	setAeroflyVolume(0.35)
 
 	# Start monitoring VR controller input
 	if not MAC_PLATFORM:
