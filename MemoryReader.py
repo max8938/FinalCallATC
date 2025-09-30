@@ -11,7 +11,7 @@ TARGET_EXE = "aerofly_fs_4.exe"
 # When game exe updates, this offset likely needs to be updated.
 
 #BASE_OFFSET = 0x01669608 # exe from 23.9.2025
-BASE_OFFSET = 0x0166A608 # exe from 30.9.2025
+BASE_OFFSET = 0x0166A608 # exe from 30.9.2025 v4.7.4.4
 
 
 # ----------------- WIN32 CONSTANTS -----------------

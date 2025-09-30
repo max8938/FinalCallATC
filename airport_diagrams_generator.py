@@ -574,6 +574,11 @@ class AirportDiagramGenerator:
 
 def generateAirportDiagram(icao_code: str):
     print(f"Creating airport diagram for {icao_code}")
+
+    filename = os.path.join("AirportDiagrams", f"{icao_code.lower()}_airport_diagram.pdf")
+    if os.path.exists(filename):
+        print("Airport diagram " + filename + " already exists, not generating new one.")
+        return filename
     
     diagram_gen = AirportDiagramGenerator()
     fetcher = AirportOSMFetcher()
@@ -586,13 +591,7 @@ def generateAirportDiagram(icao_code: str):
     
     if specific_data:
         os.makedirs("AirportDiagrams", exist_ok=True)
-
-        filename = os.path.join("AirportDiagrams", f"{icao_code.lower()}_airport_diagram.pdf")
-
-        if os.path.exists(filename):
-            print("Airport diagram " + filename + " already exists, not generating new one.")
-            return filename
-
+        
         diagram_gen.create_diagram(icao_code, specific_data, filename)
         print(f"Airport diagram created: {filename}")
         return filename

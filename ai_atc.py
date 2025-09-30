@@ -17,7 +17,7 @@ DEEPSEEK_MODEL = "deepseek-chat"
 OPENAI_MODEL = "gpt-4.1-mini"
 #OPENAI_MODEL = "gpt-4o-mini" # This one does not create as good responses as gpt-4.1-mini or deepseek
 OPENROUTER_MODEL = "deepseek/deepseek-chat-v3.1" # deepseek/deepseek-chat-v3.1 model so far has good performance and answers
-OPENROUTER_PROVIDER_SORT = "throughput" # Possible values: "cost", "latency", "throughput"
+OPENROUTER_PROVIDER_SORT = "latency" # Possible values: "cost", "latency", "throughput"
 
 
 # Enable interaction with the radio panel (COM1/COM2 volumes and frequencies, audio routing, transponder)
@@ -1180,6 +1180,7 @@ class AeroflySettings:
 		destination_runway_longitude: float = 0.0,
 		destination_runway_latitude: float = 0.0,
 		destination_runway_altitude_msl: float = 0.0,
+		destination_runway_ils_frequency: float = 0.0,
 		approach_start_longitude: float = 0.0,
 		approach_start_latitude: float = 0.0,
 		wind_strength: float = 0.0,
@@ -1195,6 +1196,7 @@ class AeroflySettings:
 		origin_airport_atis_frequency: float = 0.0,
 		origin_airport_latitude: float = 0.0,
 		origin_airport_longitude: float = 0.0,
+		departure_runway_ils_frequency: float = 0.0,
 		destination_airport_latitude: float = 0.0,
 		destination_airport_longitude: float = 0.0
 	):
@@ -1202,6 +1204,7 @@ class AeroflySettings:
 		self.destination_runway_longitude = destination_runway_longitude
 		self.destination_runway_latitude = destination_runway_latitude
 		self.destination_runway_altitude_msl = destination_runway_altitude_msl
+		self.destination_runway_ils_frequency = destination_runway_ils_frequency
 		self.approach_start_longitude = approach_start_longitude
 		self.approach_start_latitude = approach_start_latitude
 		self.wind_strength = wind_strength
@@ -1217,6 +1220,7 @@ class AeroflySettings:
 		self.origin_airport_atis_frequency = origin_airport_atis_frequency
 		self.origin_airport_latitude = origin_airport_latitude
 		self.origin_airport_longitude = origin_airport_longitude
+		self.departure_runway_ils_frequency = departure_runway_ils_frequency
 		self.destination_airport_latitude = destination_airport_latitude
 		self.destination_airport_longitude = destination_airport_longitude
 		
@@ -1293,6 +1297,9 @@ def loadAeroflySettings():
 		destFreqs = get_airport_frequencies(aeroflySettings.destination_name)
 		aeroflySettings.destination_airport_atis_frequency = getATISFrequency(destFreqs)
 		destinationAirportFrequencies = ", ".join(f"{f['description']}:{f['frequency_mhz']}" for f in destFreqs)
+
+		aeroflySettings.departure_runway_ils_frequency = get_runway_ils_frequency(aeroflySettings.origin_name, aeroflySettings.departure_runway)
+		aeroflySettings.destination_runway_ils_frequency = get_runway_ils_frequency(aeroflySettings.destination_name, aeroflySettings.destination_runway)
 		
 		# add flight plan to AI ATC instructions
 		global ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN
@@ -1578,9 +1585,17 @@ def get_airport_frequencies(icao_code):
     for airport in airports:
         if airport.get("icao", "").upper() == icao_code:
             return airport.get("freq", [])  # Return the list of frequency dicts
-    return []  # If airport not found, return empty list
+    return []  
 
-
+def get_runway_ils_frequency(icao_code, runway_number):
+	icao_code = icao_code.upper()
+	for airport in airports:
+		if airport.get("icao", "").upper() == icao_code:
+			runways = airport.get("runways", []) 
+			for runway in runways:	
+				if runway.get("number", "").upper() == runway_number.upper():
+					return runway.get("frequency_mhz", "")
+	return 0.0  
 
 # Write to PDF file
 def write_lines_with_paragraph(pdf_path, lines, firstLineInBold, withFlightPlan):
@@ -1651,10 +1666,18 @@ def writeRadioLogToFile():
 	# add flight plan at the top of the radio log
 	origFreqs = get_airport_frequencies(aeroflySettings.origin_name)
 	originAirportFrequencies = ", ".join(f"{f['description']}:{f['frequency_mhz']}" for f in origFreqs)
+	departureILSFreqString = ""
+	if aeroflySettings.departure_runway_ils_frequency != 0.0:
+		departureILSFreqString = ", ILS:" + str(aeroflySettings.departure_runway_ils_frequency)
+		
 	destFreqs = get_airport_frequencies(aeroflySettings.destination_name)
 	destinationAirportFrequencies = ", ".join(f"{f['description']}:{f['frequency_mhz']}" for f in destFreqs)
-	radioLines.append("From: " + aeroflySettings.origin_name + aeroflySettings.departure_runway + " ["+ originAirportFrequencies + "]")
-	radioLines.append("To:   " + aeroflySettings.destination_name + aeroflySettings.destination_runway + ", alt:" + str(int(aeroflySettings.destination_runway_altitude_msl)) + "ft ["+ destinationAirportFrequencies + "]")
+	destinationILSFreqString = ""
+	if aeroflySettings.destination_runway_ils_frequency != 0.0:
+		destinationILSFreqString = ", ILS:" + str(aeroflySettings.destination_runway_ils_frequency)
+
+	radioLines.append("From: " + aeroflySettings.origin_name + aeroflySettings.departure_runway + departureILSFreqString + "<br/>["+ originAirportFrequencies + "]")
+	radioLines.append("To:   " + aeroflySettings.destination_name + aeroflySettings.destination_runway + destinationILSFreqString + ", alt:" + str(int(aeroflySettings.destination_runway_altitude_msl)) + "ft <br/>["+ destinationAirportFrequencies + "]")
 	radioLines.append("-" * 72)
 
 	global chatSession
