@@ -17,7 +17,7 @@ DEEPSEEK_MODEL = "deepseek-chat"
 OPENAI_MODEL = "gpt-4.1-mini"
 #OPENAI_MODEL = "gpt-4o-mini" # This one does not create as good responses as gpt-4.1-mini or deepseek
 OPENROUTER_MODEL = "deepseek/deepseek-chat-v3.1" # deepseek/deepseek-chat-v3.1 model so far has good performance and answers
-OPENROUTER_PROVIDER_SORT = "latency" # Possible values: "cost", "latency", "throughput"
+OPENROUTER_PROVIDER_SORT = "throughput" # Possible values: "cost", "latency", "throughput"
 
 
 # Enable interaction with the radio panel (COM1/COM2 volumes and frequencies, audio routing, transponder)
@@ -125,11 +125,11 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - Ignore small mispronunciations on my side. 
 - Do not give takeoff clearance until I confirm that I am holding at runway. 
 - When I request vector or a heading, keep in mind what is my current location and heading in order to calculate the correct vector. If I read back another heading, assume that yours was incorrect and that mine is correct. 
-- Ignore minor deviations from the agreed heading, speed, altitude, etc. 
+- Ignore minor deviations from the agreed heading, speed, altitude, frequency, etc. 
 - Warn me if I am entering protected airspace without authorization. 
 - If I do not respond to urgent messages, try sending them on guard frequency 121.5 MHz. 
 - Always respond on the same frequency that I sent the message on, including guard frequency. 
-- Always respond as the entity on that frequency, not another one. 
+- Always respond as the entity whose frequency that is, not another one. 
 - AFIS service does not issue clearances, only advisories. Pilots tell say their intentions on that frequency and not ask for clearances.
 - React to my transponder code appropriately."""
 ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = ""
