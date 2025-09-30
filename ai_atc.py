@@ -209,6 +209,7 @@ button_held = False
 radioButtonHeld = False
 auxButtonOn = False
 chatterTimer = None
+transponderIdentButtonPressed = False
 
 recognizer_thread = None
 recognizer_controller = None
@@ -1422,8 +1423,11 @@ def onGameVariableChange(name, old, new):
 		if atcSoundCOM2 is not None:
 			atcSoundCOM2.set_volume(new)
 
-
-	
+	if name == "TransponderIdentButton" and old == 0.0 and new == 1.0:
+		print("Transponder IDENT button pressed.")
+		handleIdentButtonPress()
+		return
+		
 
 	# TODO react on transponder code change
 
@@ -1459,7 +1463,9 @@ def onGameVariableChange(name, old, new):
 
 	print(f"{name} changed: {old} to {new}")
 
-
+def handleIdentButtonPress():
+	message = "Squawking IDENT."
+	sendMessageToAI(message)
 
 def startPlayingATIS(airportCode, atisPlayingOn):
 	stopPlayingATIS()

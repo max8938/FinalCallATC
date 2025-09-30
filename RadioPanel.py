@@ -8,6 +8,8 @@ import sys
 if sys.platform == "win32":
 	import MemoryReader
 
+# If radio panel is not functioning correctly, game .exe might have been updated. In that case, likely just the BASE_OFFSET in MemoryReader.py needs to be updated.
+
 POLLING_INTERVAL = 0.2  # seconds
 
 MAC_PLATFORM = sys.platform == "darwin"
@@ -19,7 +21,8 @@ class RadioPanel:
 	COM2VolumeOutput: float = 0.0
 	NAV1VolumeOutput: float = 0.0
 	NAV2VolumeOutput: float = 0.0
-	SenderTransponderIdent: float = 0.0
+	#TransponderReply: float = 0.0
+	TransponderIdentButton: float = 0.0
 	TransponderCode: float = 0.0
 	MicrophoneSelect: float = 0.0
 	COM1AudioSelectButton: float = 0.0
@@ -46,7 +49,8 @@ class RadioPanel:
 		"c172": {
 			"COM1VolumeOutput": [0x0CC8, 0xAF8],
 			"COM2VolumeOutput": [0x0CC8, 0x1A98],
-			"SenderTransponderIdent": [0x0CC8, 0x31B8],
+			#"TransponderReply": [0x0CC8, 0x31B8],
+			"TransponderIdentButton": [0x0CC8, 0x3358],
 			"TransponderCode": [0x0CC8, 0x3948],
 			"MicrophoneSelect": [0x0CC8, 0x40728],
 			"COM1AudioSelectButton": [0x0CC8, 0x40918],
@@ -78,6 +82,7 @@ class RadioPanel:
 			"COM2AudioSelectButton": [0x1228, 0xEB8],
 			"AUXAudioSelectButton": [0x1228, 0x1638],
 			"TransponderCode": [0xFC0, 0xA0, 0x1A78],
+			"TransponderIdentButton": [0xFC0, 0xA0, 0x10B8],
 			"TransponderMode":  [0xFC0, 0xA0, 0xC18],  # off=0.0, SBY, ON, ALT, TST
 		},
 	}
@@ -187,7 +192,7 @@ def on_change(name, old, new):
 
 # for testing
 def main():
-	panel = RadioPanel(True, "b58")
+	panel = RadioPanel(True, "c172")
 	panel.add_callback(on_change)
 	panel.start_polling(POLLING_INTERVAL)
 
