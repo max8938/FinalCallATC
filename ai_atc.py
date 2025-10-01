@@ -119,7 +119,7 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - Do not make up any telemetry like altitude, heading and airspeed; use only data received from me. 
 - If you see me make an error or not follow instructions, you will warn me as an atc would do. 
 - If I do not communicate as expected, you should warn me about that as well. 
-- Use the information about my origin and destination airport, and frequencies available at those airports, to choose as which entity you will communicate with me, and use names like 'Milan Tower" and 'Barcelona Ground', not airport codes.
+- Use the information about my origin and destination airport, and frequencies available at those airports, to choose as which entity you will communicate with me, and use names like 'Milan Tower" and 'Barcelona Ground', not airport codes. Do not make up frequencies, use only the ones in the flight plan.
 - Format your response as JSON, except when calling a tool/function. The response should contain what ATC says to me (without any other comments) in ATC_VOICE variable. You can send blank ATC_VOICE variable if there is nothing new that needs to be communicated to the pilot. Output only pure JSON-compliant text, do not use any markdown code.
 - Put any comments or notes in COMMENTS variable.  
 - If readback from pilot is required for the instructions sent by ATC, write 15 in READBACK_TIMEOUT variable, this is the timeout in seconds. Do not say that readback is required. If you do not receive a correct readback after READBACK_TIMEOUT elapses, ask for a radio check or if I copy. 
@@ -139,7 +139,7 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - React to my transponder code appropriately."""
 ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = ""
 
-RADIO_CHATTER_GENERATION_PROMPT = "When I ask, you will generate a single exchange between a pilot and ATC. It should be relevant considering the description of the ATC frequency. It can be initiated either by the pilot or the ATC.  Output as JSON dictionary with keys MESSAGE1_ENTITY, MESSAGE2_ENTITY (names of the entities sending the messages, like: pilot, berlin ground, paris tower), MESSAGE1_TEXT and MESSAGE2_TEXT (contents of the radio messages). Do not put anything else in JSON. Use any worldwide airline if on big airport and random callsigns/flight numbers. For medium airports, use regional companies. For small airfields, use just GA callsigns.Do not repeat same requests from same entities. AFIS service does not issue clearances, only advisories."
+RADIO_CHATTER_GENERATION_PROMPT = "When I ask, you will generate a single exchange between a pilot and ATC. It should be relevant considering the description of the ATC frequency. It can be initiated either by the pilot or the ATC.  Output as JSON dictionary with keys MESSAGE1_ENTITY, MESSAGE2_ENTITY (names of the entities sending the messages, like: pilot, berlin ground, paris tower), MESSAGE1_TEXT and MESSAGE2_TEXT (contents of the radio messages). Do not put anything else in JSON. Use any worldwide airline if on big airport and random callsigns/flight numbers. For medium airports, use regional companies. For small airfields, use just GA callsigns. Do not repeat same requests from same entities. AFIS service does not issue clearances, only advisories. Speak only as the entity & airport in frequency description."
 
 FEET_IN_METER = 3.28084
 
@@ -1274,7 +1274,7 @@ def loadAeroflySettings():
 				aeroflySettings.destination_runway_longitude = lon_deg
 				aeroflySettings.destination_runway_latitude = lat_deg
 				aeroflySettings.destination_runway = waypoint.Identifier
-				approach_distance_km = 7
+				approach_distance_km = 10
 				approach_lat_deg, approach_lon_deg, approach_alt_m = mcfparser.offset_position((waypoint.Position[0], waypoint.Position[1], waypoint.Position[2]), (waypoint.Direction[0], waypoint.Direction[1], waypoint.Direction[2]), approach_distance_km)["lla"]
 				aeroflySettings.approach_start_longitude = approach_lon_deg
 				aeroflySettings.approach_start_latitude = approach_lat_deg
@@ -1765,9 +1765,9 @@ def createRadioExchange():
 	prompt = "Create a single exchange between a pilot and ATC (airport: " + randomStation["airport"] + ", airport size: " + randomStation["airportType"] + ", ATC service/frequency description: " + randomStation["description"] + "). "
 	
 	if gameTelemetry and gameTelemetry.current_location:
-		prompt += "If speaking as Center, it should be center ATC close to the current location: latitude: " + str(gameTelemetry.current_location.latitude) + ", longitude: " + str(gameTelemetry.current_location.longitude) + "."
+		prompt += "If speaking on Center frequency, it should be center ATC close to the current location: latitude: " + str(gameTelemetry.current_location.latitude) + ", longitude: " + str(gameTelemetry.current_location.longitude) + "."
 	else:
-		prompt += "If speaking as Center, do not mention current location, as it is unknown."
+		prompt += "If speaking on Center frequency, do not mention current location, as it is unknown."
 
 	# Init AI session
 	global trafficChatSession
@@ -1796,10 +1796,10 @@ def createRadioExchange():
 	aiTrafficGenerationResponse = AITrafficGenerationResponse(response)
 
 	if aiTrafficGenerationResponse and aiTrafficGenerationResponse.message1Entity and aiTrafficGenerationResponse.message1Text and aiTrafficGenerationResponse.message2Entity and aiTrafficGenerationResponse.message2Text:
-		print("Generated chatter: ", aiTrafficGenerationResponse.message1Entity, ": ", aiTrafficGenerationResponse.message1Text , " / ", aiTrafficGenerationResponse.message2Entity, ": ", aiTrafficGenerationResponse.message2Text)
+		print("Generated chatter: ", aiTrafficGenerationResponse.message1Entity.upper(), ": ", aiTrafficGenerationResponse.message1Text , " / ", aiTrafficGenerationResponse.message2Entity.upper(), ": ", aiTrafficGenerationResponse.message2Text)
 		
 		# Speak the first message
-		sayWithRadioEffect(aiTrafficGenerationResponse.message1Entity, aiTrafficGenerationResponse.message1Text, randomStation["receivingRadio"], True, "chatter")
+		sayWithRadioEffect(aiTrafficGenerationResponse.message1Entity.upper(), aiTrafficGenerationResponse.message1Text, randomStation["receivingRadio"], True, "chatter")
 
 		# Speak the second message after a delay. 
 		time.sleep(3)
@@ -1823,7 +1823,7 @@ def createRadioExchange():
 			chatterTimer.start() 
 			return
 
-		sayWithRadioEffect(aiTrafficGenerationResponse.message2Entity, aiTrafficGenerationResponse.message2Text, randomStation["receivingRadio"], True, "chatter")
+		sayWithRadioEffect(aiTrafficGenerationResponse.message2Entity.upper(), aiTrafficGenerationResponse.message2Text, randomStation["receivingRadio"], True, "chatter")
 	
 	chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
 	chatterTimer.start() 
