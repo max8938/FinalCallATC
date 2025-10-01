@@ -6,7 +6,7 @@
 TELEMETRY_SEND_INTERVAL=60.0 
 
 RADIO_CHATTER_TIMER = 15.0 # How often will system attempt to create radio chatter between other stations, in seconds
-RADIO_CHATTER_PROBABILITY = 80.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
+RADIO_CHATTER_PROBABILITY = 100.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
 # For smaller airports (less frequencies), the chatter will be generated a bit less often. Chatter on GUARD (121.5) is rare, and frequent on CENTER (134.0).
 
 # Which AI service to use
@@ -16,8 +16,13 @@ AI_TYPE = "OPENROUTER" # Possible values: "DEEPSEEK", "OPENAI", "OPENROUTER"
 DEEPSEEK_MODEL = "deepseek-chat"
 OPENAI_MODEL = "gpt-4.1-mini"
 #OPENAI_MODEL = "gpt-4o-mini" # This one does not create as good responses as gpt-4.1-mini or deepseek
+
+# Openrouter enables switching between different AI models and hosts (which differ in speed and price)
 OPENROUTER_MODEL = "deepseek/deepseek-chat-v3.1" # deepseek/deepseek-chat-v3.1 model so far has good performance and answers
-OPENROUTER_PROVIDER_SORT = "throughput" # Possible values: "cost", "latency", "throughput"
+# If using Openrouter, which providers to prefer:
+OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT = "throughput" 
+OPENROUTER_PROVIDER_SORT_PRICE = "price"
+OPENROUTER_PROVIDER_SORT_LATENCY = "latency"
 
 
 # Enable interaction with the radio panel (COM1/COM2 volumes and frequencies, audio routing, transponder)
@@ -210,6 +215,7 @@ radioButtonHeld = False
 auxButtonOn = False
 chatterTimer = None
 transponderIdentButtonPressed = False
+trafficChatMessageCnt = 0
 
 recognizer_thread = None
 recognizer_controller = None
@@ -251,7 +257,7 @@ class ChatSession:
 		self.messages = [{"role": "system", "content": system_prompt}]
 		
     
-	def get_response(self): #model="deepseek-chat"):
+	def get_response(self, orProviderSort=OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT):
 		if AI_TYPE == "DEEPSEEK":
 			model=DEEPSEEK_MODEL
 		elif AI_TYPE == "OPENROUTER":
@@ -269,7 +275,7 @@ class ChatSession:
 			tools=self.tools,
 			extra_body={
 				"provider": {
-					"sort": OPENROUTER_PROVIDER_SORT
+					"sort": orProviderSort
 				}
 			}
 		)
@@ -326,7 +332,7 @@ def handle_tool_calls(parsed_response):
 	global chatSession
 	chatSession.messages.append(tool_responses[0])
 	print("all messages: ", chatSession.messages)
-	return chatSession.get_response()
+	return chatSession.get_response(OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT)
     
 
 def call_function(name, args):
@@ -716,7 +722,7 @@ def sendMessageToAI(cleanedtext):
 	chatSession.add_user_message(timestamp + " " + telemetryMessage) # this sends telemetry together with voice
 	
 	
-	response = chatSession.get_response()
+	response = chatSession.get_response(OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT)
 	
 	timestamp = datetime.now().strftime("%H:%M:%S")
 	print(timestamp+" sendMessageToAI response from received speech: ", response)
@@ -1765,11 +1771,20 @@ def createRadioExchange():
 
 	# Init AI session
 	global trafficChatSession
+
+	# Clear AI session for radio chatter generation periodically, to reduce costs
+	global trafficChatMessageCnt
+	if trafficChatMessageCnt > 6:
+		print("Clearing radio chatter message history.")
+		trafficChatSession = None
+		trafficChatMessageCnt = 0
+
 	if not trafficChatSession:
 		trafficChatSession = ChatSession(RADIO_CHATTER_GENERATION_PROMPT, aiTools=None)
 
 	trafficChatSession.add_user_message(prompt)
-	response = trafficChatSession.get_response()
+	response = trafficChatSession.get_response(OPENROUTER_PROVIDER_SORT_PRICE) # We do not care how responsive AI is for chatter generation, so cheaper is better
+	trafficChatMessageCnt += 1
 
 	# Check again if user is communicating
 	if communicationWithAIInProgress or atisPlaying:
