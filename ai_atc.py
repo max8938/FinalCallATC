@@ -19,10 +19,16 @@ OPENAI_MODEL = "gpt-4.1-mini"
 
 # Openrouter enables switching between different AI models and hosts (which differ in speed and price)
 OPENROUTER_MODEL = "deepseek/deepseek-chat-v3.1" # deepseek/deepseek-chat-v3.1 model so far has good performance and answers
+#OPENROUTER_MODEL = "deepseek/deepseek-chat-v3-0324"
+#OPENROUTER_MODEL = "deepseek/deepseek-chat"
 # If using Openrouter, which providers to prefer:
 OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT = "throughput" 
 OPENROUTER_PROVIDER_SORT_PRICE = "price"
 OPENROUTER_PROVIDER_SORT_LATENCY = "latency"
+
+# These control max prices (in USD) that we want to pay per million prompt (input) and completion (output) tokens
+OPENROUTER_MAX_PROMPT_PRICE = 0.8
+OPENROUTER_MAX_COMPLETION_PRICE = 2.0
 
 
 # Enable interaction with the radio panel (COM1/COM2 volumes and frequencies, audio routing, transponder)
@@ -124,6 +130,7 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - Put any comments or notes in COMMENTS variable.  
 - If readback from pilot is required for the instructions sent by ATC, write 15 in READBACK_TIMEOUT variable, this is the timeout in seconds. Do not say that readback is required. If you do not receive a correct readback after READBACK_TIMEOUT elapses, ask for a radio check or if I copy. 
 - Put the name of the entity you are representing, like Paris Tower, in variable ENTITY. Answer only as entity on the frequency, not as another entity. 
+- If I address you as a wrong entity, you will always warn me.
 - Put the frequency of the sender in FREQUENCY variable, or 0 if unknown. 
 - If I deviate from ATC instructions behave as real ATC would. 
 - If any numbers are typically read digit by digit, write them using letters, not digits.  
@@ -147,10 +154,10 @@ VOICES = ['en-US-EmmaMultilingualNeural', 'en-US-GuyNeural', 'en-US-AndrewMultil
 
 # Distance in nautical miles that each type of radio can be heard from the airport
 RADIO_REACH = {
-        "TWR": 10.0,
+        "TWR": 50.0,
 		"GND": 5.0,
 		"ATIS": 70.0,
-		"AFIS": 20.0,
+		"AFIS": 30.0,
 		"A/D": 50.0,
 		"ARR": 60.0,
 		"APP/DEP": 50.0,
@@ -276,7 +283,8 @@ class ChatSession:
 			extra_body={
 				"provider": {
 					"sort": orProviderSort
-				}
+				},
+				"max_price": {"prompt": OPENROUTER_MAX_PROMPT_PRICE, "completion": OPENROUTER_MAX_COMPLETION_PRICE}
 			}
 		)
 		end = time.time()
@@ -872,6 +880,7 @@ def safe_log(self, text):
 	
 def get_entity_voice(entityName):
 	# If the entity already has a voice assigned, return it
+	entityName = entityName.rstrip().upper()
 	if entityName in entityVoices:
 		return entityVoices[entityName]
 
@@ -1299,10 +1308,10 @@ def loadAeroflySettings():
 		destinationAirportName = get_airport_name(aeroflySettings.destination_name)
 		origFreqs = get_airport_frequencies(aeroflySettings.origin_name)
 		aeroflySettings.origin_airport_atis_frequency = getATISFrequency(origFreqs)
-		originAirportFrequencies = ", ".join(f"{f['description']}:{f['frequency_mhz']}" for f in origFreqs)
+		originAirportFrequencies = ", ".join(f"{f['description']}:{round(f['frequency_mhz'], 2)}" for f in origFreqs)
 		destFreqs = get_airport_frequencies(aeroflySettings.destination_name)
 		aeroflySettings.destination_airport_atis_frequency = getATISFrequency(destFreqs)
-		destinationAirportFrequencies = ", ".join(f"{f['description']}:{f['frequency_mhz']}" for f in destFreqs)
+		destinationAirportFrequencies = ", ".join(f"{f['description']}:{round(f['frequency_mhz'], 2)}" for f in destFreqs)
 
 		aeroflySettings.departure_runway_ils_frequency = get_runway_ils_frequency(aeroflySettings.origin_name, aeroflySettings.departure_runway)
 		aeroflySettings.destination_runway_ils_frequency = get_runway_ils_frequency(aeroflySettings.destination_name, aeroflySettings.destination_runway)
@@ -1671,13 +1680,13 @@ def writeRadioLogToFile():
 
 	# add flight plan at the top of the radio log
 	origFreqs = get_airport_frequencies(aeroflySettings.origin_name)
-	originAirportFrequencies = ", ".join(f"{f['description']}:{f['frequency_mhz']}" for f in origFreqs)
+	originAirportFrequencies = ", ".join(f"{f['description']}:{round(f['frequency_mhz'],2)}" for f in origFreqs)
 	departureILSFreqString = ""
 	if aeroflySettings.departure_runway_ils_frequency != 0.0:
 		departureILSFreqString = ", ILS:" + str(aeroflySettings.departure_runway_ils_frequency)
 		
 	destFreqs = get_airport_frequencies(aeroflySettings.destination_name)
-	destinationAirportFrequencies = ", ".join(f"{f['description']}:{f['frequency_mhz']}" for f in destFreqs)
+	destinationAirportFrequencies = ", ".join(f"{f['description']}:{round(f['frequency_mhz'],2)}" for f in destFreqs)
 	destinationILSFreqString = ""
 	if aeroflySettings.destination_runway_ils_frequency != 0.0:
 		destinationILSFreqString = ", ILS:" + str(aeroflySettings.destination_runway_ils_frequency)
