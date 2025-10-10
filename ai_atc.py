@@ -48,6 +48,7 @@ import mcfparser
 import airport_diagrams_generator
 
 import glob
+from decimal import Decimal, ROUND_HALF_UP
 
 import pygame
 
@@ -228,6 +229,11 @@ trafficChatMessageCnt = 0
 
 recognizer_thread = None
 recognizer_controller = None
+
+def round_half_up(n, decimals=0):
+    # Convert to Decimal for exact rounding
+    multiplier = Decimal('1e{}'.format(-decimals))
+    return float(Decimal(str(n)).quantize(multiplier, rounding=ROUND_HALF_UP))
 
 class ChatSession:
 	def __init__(self, system_prompt=ATC_INIT_INSTRUCTIONS, aiTools=None):
@@ -525,7 +531,7 @@ def getReachableFrequencies():
 		freq["airport"] = get_airport_name(aeroflySettings.origin_name)
 		freq["airportType"] = origAirportType
 		freq["airportSizeModifier"] = origAirportSizeModifier
-		freq["receivingRadio"] = radioTunedToFrequency(round(float(freq["frequency_mhz"]),2))
+		freq["receivingRadio"] = radioTunedToFrequency(round_half_up(float(freq["frequency_mhz"]),2))
 		if len(freq["receivingRadio"]) > 0:
 			reach = RADIO_REACH.get(freq["description"], 0.0)
 			if reach and reach >= distanceFromOrigin:
@@ -541,7 +547,7 @@ def getReachableFrequencies():
 		freq["airport"] = get_airport_name(aeroflySettings.destination_name)
 		freq["airportType"] = destAirportType
 		freq["airportSizeModifier"] = destAirportSizeModifier
-		freq["receivingRadio"] = radioTunedToFrequency(round(float(freq["frequency_mhz"]),2))
+		freq["receivingRadio"] = radioTunedToFrequency(round_half_up(float(freq["frequency_mhz"]),2))
 		if len(freq["receivingRadio"]) > 0:
 			reach = RADIO_REACH.get(freq["description"], 0.0)
 			if reach and reach >= distanceFromDestination:
@@ -557,7 +563,7 @@ def getReachableFrequencies():
 		"airportType": "large_airport",
         "airportSizeModifier": "0.01"
       }
-	guardFreq["receivingRadio"] = canMessageBeHeard(round(float(guardFreq["frequency_mhz"]),2))
+	guardFreq["receivingRadio"] = canMessageBeHeard(round_half_up(float(guardFreq["frequency_mhz"]),2))
 	if len(guardFreq["receivingRadio"]) > 0:
 		allFrequencies.append(guardFreq)
 
@@ -568,7 +574,7 @@ def getReachableFrequencies():
 		"airportType": "large_airport",
         "airportSizeModifier": "1.0"
       }
-	centerFreq["receivingRadio"] = canMessageBeHeard(round(float(centerFreq["frequency_mhz"]),2))
+	centerFreq["receivingRadio"] = canMessageBeHeard(round_half_up(float(centerFreq["frequency_mhz"]),2))
 	if len(centerFreq["receivingRadio"]) > 0:
 		allFrequencies.append(centerFreq)
 	
@@ -582,8 +588,8 @@ def canMessageBeHeard(senderFrequency):
 		return "COM1"
 
 
-	com1FrequencyMHz = round(radioPanel.COM1Frequency/1000000, 2)
-	com2FrequencyMHz = round(radioPanel.COM2Frequency/1000000, 2)
+	com1FrequencyMHz = round_half_up(radioPanel.COM1Frequency/1000000, 2)
+	com2FrequencyMHz = round_half_up(radioPanel.COM2Frequency/1000000, 2)
 	#print("senderFrequency: ", senderFrequency, " com1FrequencyMHz: ", com1FrequencyMHz, " com2FrequencyMHz: ", com2FrequencyMHz, " COM1AudioSelectButton: ", radioPanel.COM1AudioSelectButton, " COM2AudioSelectButton: ", radioPanel.COM2AudioSelectButton)
 	if senderFrequency == com1FrequencyMHz and radioPanel.COM1AudioSelectButton: 
 		print("can hear " + str(senderFrequency) +" on COM1")
@@ -603,8 +609,8 @@ def radioTunedToFrequency(senderFrequency):
 	if not radioPanel:
 		return "COM1"
 
-	com1FrequencyMHz = round(radioPanel.COM1Frequency/1000000, 2)
-	com2FrequencyMHz = round(radioPanel.COM2Frequency/1000000, 2)
+	com1FrequencyMHz = round_half_up(radioPanel.COM1Frequency/1000000, 2)
+	com2FrequencyMHz = round_half_up(radioPanel.COM2Frequency/1000000, 2)
 	#print("senderFrequency: ", senderFrequency, " com1FrequencyMHz: ", com1FrequencyMHz, " com2FrequencyMHz: ", com2FrequencyMHz, " COM1AudioSelectButton: ", radioPanel.COM1AudioSelectButton, " COM2AudioSelectButton: ", radioPanel.COM2AudioSelectButton)
 	if senderFrequency == com1FrequencyMHz: 
 		print("Returning COM1 as tuned to " + str(senderFrequency))
@@ -633,13 +639,13 @@ def canPilotBeHeard():
 	"""
 	validFrequencies = []
 	origFreqs = get_airport_frequencies(aeroflySettings.origin_name)
-	originAirportFrequencies = [round(float(item["frequency_mhz"]),2) for item in origFreqs]
+	originAirportFrequencies = [round_half_up(float(item["frequency_mhz"]),2) for item in origFreqs]
 	destFreqs = get_airport_frequencies(aeroflySettings.destination_name)
-	destinationAirportFrequencies = [round(float(item["frequency_mhz"]),2) for item in destFreqs]
+	destinationAirportFrequencies = [round_half_up(float(item["frequency_mhz"]),2) for item in destFreqs]
 	validFrequencies += originAirportFrequencies + destinationAirportFrequencies + [float(121.50)]
 	"""
 	reachableFrequencies = getReachableFrequencies()
-	validFrequencies = [round(float(item["frequency_mhz"]),2) for item in reachableFrequencies]
+	validFrequencies = [round_half_up(float(item["frequency_mhz"]),2) for item in reachableFrequencies]
 	print("Reachable frequencies: ", reachableFrequencies)
 
 	# Allow sending pilot's message if the freq is valid or in case we do not have radio panel info (-1.0)
@@ -671,9 +677,9 @@ def pilotTransmittingFrequency():
 
 	pilotTransmittingFrequency = None
 	if pilotTransmittingRadio == "COM1":
-		pilotTransmittingFrequency = round(radioPanel.COM1Frequency/1000000, 2)
+		pilotTransmittingFrequency = round_half_up(radioPanel.COM1Frequency/1000000, 2)
 	elif pilotTransmittingRadio == "COM2":	
-		pilotTransmittingFrequency = round(radioPanel.COM2Frequency/1000000, 2)
+		pilotTransmittingFrequency = round_half_up(radioPanel.COM2Frequency/1000000, 2)
 	else:
 		print("Pilot is not transmitting on COM1 or COM2, no one can hear the pilot.")
 		pilotTransmittingFrequency = 0
@@ -739,7 +745,7 @@ def sendMessageToAI(cleanedtext):
 
 	atcResponse = ATCResponse(response)
 
-	senderFrequency = round(float(atcResponse.FREQUENCY),2) # in MHz, rounded to 2 decimals
+	senderFrequency = round_half_up(float(atcResponse.FREQUENCY),2) # in MHz, rounded to 2 decimals
 	receivingRadio = canMessageBeHeard(senderFrequency)
 	if (len(receivingRadio) > 0):	
 		printATCInstructions(atcResponse.ATC_VOICE, atcResponse.COMMENTS, True)	
@@ -1310,10 +1316,10 @@ def loadAeroflySettings():
 		destinationAirportName = get_airport_name(aeroflySettings.destination_name)
 		origFreqs = get_airport_frequencies(aeroflySettings.origin_name)
 		aeroflySettings.origin_airport_atis_frequency = getATISFrequency(origFreqs)
-		originAirportFrequencies = ", ".join(f"{f['description']}:{round(f['frequency_mhz'], 2)}" for f in origFreqs)
+		originAirportFrequencies = ", ".join(f"{f['description']}:{f['frequency_mhz']}" for f in origFreqs)
 		destFreqs = get_airport_frequencies(aeroflySettings.destination_name)
 		aeroflySettings.destination_airport_atis_frequency = getATISFrequency(destFreqs)
-		destinationAirportFrequencies = ", ".join(f"{f['description']}:{round(f['frequency_mhz'], 2)}" for f in destFreqs)
+		destinationAirportFrequencies = ", ".join(f"{f['description']}:{f['frequency_mhz']}" for f in destFreqs)
 
 		aeroflySettings.departure_runway_ils_frequency = get_runway_ils_frequency(aeroflySettings.origin_name, aeroflySettings.departure_runway)
 		aeroflySettings.destination_runway_ils_frequency = get_runway_ils_frequency(aeroflySettings.destination_name, aeroflySettings.destination_runway)
@@ -1460,14 +1466,14 @@ def onGameVariableChange(name, old, new):
 	global atisPlayingOnRadio
 	if not atisPlaying:
 		if (name == "COM1Frequency" or name == "COM1AudioSelectButton") and radioPanel.COM1AudioSelectButton:
-			if aeroflySettings.origin_airport_atis_frequency and round(radioPanel.COM1Frequency/1000000, 2) == round(aeroflySettings.origin_airport_atis_frequency,2):
+			if aeroflySettings.origin_airport_atis_frequency and round_half_up(radioPanel.COM1Frequency/1000000, 2) == round_half_up(aeroflySettings.origin_airport_atis_frequency,2):
 				startPlayingATIS(aeroflySettings.origin_name, "COM1")
-			elif aeroflySettings.destination_airport_atis_frequency and round(radioPanel.COM1Frequency/1000000, 2) == round(aeroflySettings.destination_airport_atis_frequency,2):
+			elif aeroflySettings.destination_airport_atis_frequency and round_half_up(radioPanel.COM1Frequency/1000000, 2) == round_half_up(aeroflySettings.destination_airport_atis_frequency,2):
 				startPlayingATIS(aeroflySettings.destination_name, "COM1")
 		elif (name == "COM2Frequency" or name == "COM2AudioSelectButton") and radioPanel.COM2AudioSelectButton:
-			if aeroflySettings.origin_airport_atis_frequency and round(radioPanel.COM2Frequency/1000000, 2) == round(aeroflySettings.origin_airport_atis_frequency,2):
+			if aeroflySettings.origin_airport_atis_frequency and round_half_up(radioPanel.COM2Frequency/1000000, 2) == round_half_up(aeroflySettings.origin_airport_atis_frequency,2):
 				startPlayingATIS(aeroflySettings.origin_name, "COM2")
-			elif aeroflySettings.destination_airport_atis_frequency and round(radioPanel.COM2Frequency/1000000, 2) == round(aeroflySettings.destination_airport_atis_frequency,2):
+			elif aeroflySettings.destination_airport_atis_frequency and round_half_up(radioPanel.COM2Frequency/1000000, 2) == round_half_up(aeroflySettings.destination_airport_atis_frequency,2):
 				startPlayingATIS(aeroflySettings.destination_name, "COM2")
 	elif atisPlaying and atisPlayingOnRadio == "COM1":
 		if (name == "COM1AudioSelectButton" and not radioPanel.COM1AudioSelectButton) or name == "COM1Frequency":
@@ -1682,13 +1688,13 @@ def writeRadioLogToFile():
 
 	# add flight plan at the top of the radio log
 	origFreqs = get_airport_frequencies(aeroflySettings.origin_name)
-	originAirportFrequencies = ", ".join(f"{f['description']}:{round(f['frequency_mhz'],2)}" for f in origFreqs)
+	originAirportFrequencies = ", ".join(f"{f['description']}:{f['frequency_mhz']}" for f in origFreqs)
 	departureILSFreqString = ""
 	if aeroflySettings.departure_runway_ils_frequency != 0.0:
 		departureILSFreqString = ", ILS:" + str(aeroflySettings.departure_runway_ils_frequency)
 		
 	destFreqs = get_airport_frequencies(aeroflySettings.destination_name)
-	destinationAirportFrequencies = ", ".join(f"{f['description']}:{round(f['frequency_mhz'],2)}" for f in destFreqs)
+	destinationAirportFrequencies = ", ".join(f"{f['description']}:{f['frequency_mhz']}" for f in destFreqs)
 	destinationILSFreqString = ""
 	if aeroflySettings.destination_runway_ils_frequency != 0.0:
 		destinationILSFreqString = ", ILS:" + str(aeroflySettings.destination_runway_ils_frequency)
