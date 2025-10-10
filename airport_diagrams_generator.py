@@ -602,7 +602,7 @@ def generateAirportDiagram(icao_code: str):
 
 def main():
     """Main function to run the example"""
-    generateAirportDiagram("LSZH")  # Zurich Airport
+    generateAirportDiagram("GMME")  
 
 if __name__ == "__main__":
     import sys

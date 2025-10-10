@@ -6,21 +6,22 @@
 TELEMETRY_SEND_INTERVAL=60.0 
 
 RADIO_CHATTER_TIMER = 15.0 # How often will system attempt to create radio chatter between other stations, in seconds
-RADIO_CHATTER_PROBABILITY = 100.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
+RADIO_CHATTER_PROBABILITY = 70.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
 # For smaller airports (less frequencies), the chatter will be generated a bit less often. Chatter on GUARD (121.5) is rare, and frequent on CENTER (134.0).
 
 # Which AI service to use
 AI_TYPE = "OPENROUTER" # Possible values: "DEEPSEEK", "OPENAI", "OPENROUTER"
 
-# AI models to use
+# AI models to use. If AI_TYPE = "OPENROUTER", the model will be used through Openrouter (OPENROUTER_MODEL setting)
+# Best in my experience so far is Deepseek v3, but it is currently available only through Openrouter, and is slower than newer models.
 DEEPSEEK_MODEL = "deepseek-chat"
 OPENAI_MODEL = "gpt-4.1-mini"
 #OPENAI_MODEL = "gpt-4o-mini" # This one does not create as good responses as gpt-4.1-mini or deepseek
 
 # Openrouter enables switching between different AI models and hosts (which differ in speed and price)
-OPENROUTER_MODEL = "deepseek/deepseek-chat-v3.1" # deepseek/deepseek-chat-v3.1 model so far has good performance and answers
+#OPENROUTER_MODEL = "deepseek/deepseek-chat-v3.1" # deepseek/deepseek-chat-v3.1 model so far has good performance and answers
 #OPENROUTER_MODEL = "deepseek/deepseek-chat-v3-0324"
-#OPENROUTER_MODEL = "deepseek/deepseek-chat"
+OPENROUTER_MODEL = "deepseek/deepseek-chat"
 # If using Openrouter, which providers to prefer:
 OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT = "throughput" 
 OPENROUTER_PROVIDER_SORT_PRICE = "price"
@@ -143,10 +144,11 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - Always respond on the same frequency that I sent the message on, including guard frequency. 
 - Always respond as the entity whose frequency that is, not another one. 
 - AFIS service does not issue clearances, only advisories. Pilots tell say their intentions on that frequency and not ask for clearances.
-- React to my transponder code appropriately."""
+- React to my transponder code appropriately.
+- Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz. """
 ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = ""
 
-RADIO_CHATTER_GENERATION_PROMPT = "When I ask, you will generate a single exchange between a pilot and ATC. It should be relevant considering the description of the ATC frequency. It can be initiated either by the pilot or the ATC.  Output as JSON dictionary with keys MESSAGE1_ENTITY, MESSAGE2_ENTITY (names of the entities sending the messages, like: pilot, berlin ground, paris tower), MESSAGE1_TEXT and MESSAGE2_TEXT (contents of the radio messages). Do not put anything else in JSON. Use any worldwide airline if on big airport and random callsigns/flight numbers. For medium airports, use regional companies. For small airfields, use just GA callsigns. Do not repeat same requests from same entities. AFIS service does not issue clearances, only advisories. Speak only as the entity & airport in frequency description."
+RADIO_CHATTER_GENERATION_PROMPT = "When I ask, you will generate a single exchange between a pilot and ATC. It should be relevant considering the description of the ATC frequency. It can be initiated either by the pilot or the ATC.  Output as JSON dictionary with keys MESSAGE1_ENTITY, MESSAGE2_ENTITY (names of the entities sending the messages, like: pilot, berlin ground, paris tower), MESSAGE1_TEXT and MESSAGE2_TEXT (contents of the radio messages). Do not put anything else in JSON. Use any worldwide airline if on big airport and random callsigns/flight numbers. For medium airports, use regional companies. For small airfields, use just GA callsigns. Do not repeat same requests from same entities. AFIS service does not issue clearances, only advisories. Speak only as the entity & airport in frequency description. If speaking on Center frequency, do not mention any locations, make an exchange where location does not matter, like flight level changes, etc."
 
 FEET_IN_METER = 3.28084
 
@@ -1773,11 +1775,7 @@ def createRadioExchange():
 
 	prompt = "Create a single exchange between a pilot and ATC (airport: " + randomStation["airport"] + ", airport size: " + randomStation["airportType"] + ", ATC service/frequency description: " + randomStation["description"] + "). "
 	
-	if gameTelemetry and gameTelemetry.current_location:
-		prompt += "If speaking on Center frequency, it should be center ATC close to the current location: latitude: " + str(gameTelemetry.current_location.latitude) + ", longitude: " + str(gameTelemetry.current_location.longitude) + "."
-	else:
-		prompt += "If speaking on Center frequency, do not mention current location, as it is unknown."
-
+	
 	# Init AI session
 	global trafficChatSession
 
