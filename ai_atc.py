@@ -146,10 +146,11 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - Always respond as the entity whose frequency that is, not another one. 
 - AFIS service does not issue clearances, only advisories. Pilots tell say their intentions on that frequency and not ask for clearances.
 - React to my transponder code appropriately.
-- Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz. """
+- Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz.
+- Ignore minor frequency deviations, for example consider 131.675 same as 131.68"""
 ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = ""
 
-RADIO_CHATTER_GENERATION_PROMPT = "When I ask, you will generate a single exchange between a pilot and ATC. It should be relevant considering the description of the ATC frequency. It can be initiated either by the pilot or the ATC.  Output as JSON dictionary with keys MESSAGE1_ENTITY, MESSAGE2_ENTITY (names of the entities sending the messages, like: pilot, berlin ground, paris tower), MESSAGE1_TEXT and MESSAGE2_TEXT (contents of the radio messages). Do not put anything else in JSON. Use any worldwide airline if on big airport and random callsigns/flight numbers. For medium airports, use regional companies. For small airfields, use just GA callsigns. Do not repeat same requests from same entities. AFIS service does not issue clearances, only advisories. Speak only as the entity & airport in frequency description. If speaking on Center frequency as Center ATC or a pilot, do not mention any locations, make an exchange where location does not matter, like flight level changes, etc."
+RADIO_CHATTER_GENERATION_PROMPT = "When I ask, you will generate a single exchange between a pilot and ATC. It should be relevant considering the description of the ATC frequency. It can be initiated either by the pilot or the ATC.  Output as JSON dictionary with keys MESSAGE1_ENTITY, MESSAGE2_ENTITY (names of the entities sending the messages, like: pilot, berlin ground, paris tower), MESSAGE1_TEXT and MESSAGE2_TEXT (contents of the radio messages). Do not put anything else in JSON. Use any worldwide airline if on big airport and random callsigns/flight numbers. For medium airports, use regional companies. For small airfields, use just GA callsigns. Do not repeat same requests from same entities. AFIS service does not issue clearances, only advisories. Speak only as the entity & airport in frequency description. If speaking to or as Center ATC, do not mention any locations or airport names, make an exchange where location does not matter, like flight level changes, etc."
 
 FEET_IN_METER = 3.28084
 

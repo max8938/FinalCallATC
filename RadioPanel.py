@@ -85,6 +85,19 @@ class RadioPanel:
 			"TransponderIdentButton": [0xFC0, 0xA0, 0x10B8],
 			"TransponderMode":  [0xFC0, 0xA0, 0xC18],  # off=0.0, SBY, ON, ALT, TST
 		},
+		"q400": {
+			"COM1VolumeOutput": [0x5258, 0x19A28], # ARCDU1.VHF1.Volume
+			"COM2VolumeOutput": [0x5258, 0x1A278], # ARCDU1.VHF2.Volume
+			"MicrophoneSelect": [0x5258, 0x1F8F8], # ARCDU1.MicrophoneSelector
+			"COM1Frequency": [0x5258, 0x6F8], # Communication.COM1Frequency
+			"COM2Frequency": [0x5258, 0x1138], # Communication.COM2Frequency
+			"COM1AudioSelectButton": [0x5258, 0x194E8], # ARCDU1.VHF1.AudioSelect
+			"COM2AudioSelectButton": [0x5258, 0x19D38], # ARCDU1.VHF2.AudioSelect
+			"AUXAudioSelectButton": [0x5258, 0x1ADD8], # ARCDU1.AUX1.AudioSelect
+			"TransponderCode": [0x5258, 0xDDE10], # SquawkCode
+			#"TransponderIdentButton": [0x5258, 0x],
+			"TransponderMode":  [0x5258, 0xDE0B0],  # ATCAltitudeReportingSystem, ALT1=0.0, off=1.0, ALT2=2.0
+		},
 	}
 
 	# Transmitting radio switch
@@ -101,6 +114,12 @@ class RadioPanel:
 			"COM2": 1.0,
 			"AUX": 2.0,
 			"EXT": 3.0,
+		},
+		"q400": {
+			"COM1": 0.0,
+			"COM2": 1.0,
+			"AUX": 3.0,
+			
 		},
 	}
 
@@ -119,6 +138,11 @@ class RadioPanel:
 			"ON": 2.0,
 			"ALT": 3.0,
 			"TST": 4.0,
+		},
+		"q400": {
+			"OFF": 1.0,
+			"ALT": 0.0,
+			
 		},
 	}
 
