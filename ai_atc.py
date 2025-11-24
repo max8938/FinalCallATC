@@ -19,9 +19,12 @@ OPENAI_MODEL = "gpt-4.1-mini"
 #OPENAI_MODEL = "gpt-4o-mini" # This one does not create as good responses as gpt-4.1-mini or deepseek
 
 # Openrouter enables switching between different AI models and hosts (which differ in speed and price)
-#OPENROUTER_MODEL = "deepseek/deepseek-chat-v3.1" # deepseek/deepseek-chat-v3.1 model so far has good performance and answers
+#OPENROUTER_MODEL = "deepseek/deepseek-chat-v3.1" 
+#OPENROUTER_MODEL = "deepseek/deepseek-v3.2-exp"   # bad for ATC 
 #OPENROUTER_MODEL = "deepseek/deepseek-chat-v3-0324"
-OPENROUTER_MODEL = "deepseek/deepseek-chat"
+OPENROUTER_MODEL = "deepseek/deepseek-chat" # best for ATC so far
+#OPENROUTER_MODEL = "deepseek/deepseek-v3.1-terminus"
+
 # If using Openrouter, which providers to prefer:
 OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT = "throughput" 
 OPENROUTER_PROVIDER_SORT_PRICE = "price"
@@ -33,7 +36,7 @@ OPENROUTER_MAX_COMPLETION_PRICE = 2.0
 
 
 # Enable interaction with the radio panel (COM1/COM2 volumes and frequencies, audio routing, transponder)
-# Currently suported only on Windows, for Cessna 172 and Baron 58 in Aerofly FS4
+# Currently suported only on Windows, for Cessna 172, Baron 58 and Q400 in Aerofly FS4
 ENABLE_RADIO_PANEL = True
 
 # VR controller mapping for Push to Talk. Assume controller 1 is at device index 1.
@@ -130,7 +133,8 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - Use the information about my origin and destination airport, and frequencies available at those airports, to choose as which entity you will communicate with me, and use names like 'Milan Tower" and 'Barcelona Ground', not airport codes. Do not make up frequencies, use only the ones in the flight plan.
 - Format your response as JSON, except when calling a tool/function. The response should contain what ATC says to me (without any other comments) in ATC_VOICE variable. You can send blank ATC_VOICE variable if there is nothing new that needs to be communicated to the pilot. Output only pure JSON-compliant text, do not use any markdown code.
 - Put any comments or notes in COMMENTS variable.  
-- Put the name of the entity you are representing, like Paris Tower, in variable ENTITY. Answer only as entity on the frequency, not as another entity. 
+- Put the name of the entity you are representing, like Paris Tower, in variable ENTITY. 
+- Answer only as entity on the frequency, not as another entity, and always on the same frequency that I sent the message on. No exceptions. 
 - If I address you as a wrong entity, for example I transmit on tower frequency and address you as ground, you will always warn me.
 - Put the frequency of the sender in FREQUENCY variable, or 0 if unknown. 
 - If I deviate from ATC instructions behave as real ATC would. 
@@ -144,8 +148,8 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - Always respond as the entity whose frequency that is, not another one. 
 - AFIS service does not issue clearances, only advisories. Pilots tell say their intentions on that frequency and not ask for clearances.
 - React to my transponder code appropriately.
-- Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz.
-- Ignore minor frequency deviations, for example consider 131.675 same as 131.68 and do not mention it."""
+- Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz."""
+#- Ignore minor frequency deviations, for example consider 131.675 same as 131.68 and do not mention it."""
 ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = ""
 
 RADIO_CHATTER_GENERATION_PROMPT = "When I ask, you will generate a single exchange between a pilot and ATC. It should be relevant considering the description of the ATC frequency. It can be initiated either by the pilot or the ATC.  Output as JSON dictionary with keys MESSAGE1_ENTITY, MESSAGE2_ENTITY (names of the entities sending the messages, like: pilot, berlin ground, paris tower), MESSAGE1_TEXT and MESSAGE2_TEXT (contents of the radio messages). Do not put anything else in JSON. Use any worldwide airline if on big airport and random callsigns/flight numbers. For medium airports, use regional companies. For small airfields, use just GA callsigns. Do not repeat same requests from same entities. AFIS service does not issue clearances, only advisories. Speak only as the entity & airport in frequency description. If speaking to or as Center ATC, do not mention any locations or airport names, make an exchange where location does not matter, like flight level changes, etc."
@@ -230,9 +234,14 @@ recognizer_thread = None
 recognizer_controller = None
 
 def round_half_up(n, decimals=0):
-    # Convert to Decimal for exact rounding
+    #return without rounding, to test whether rounding is needed
+	return n 
+	
+	"""
+	# Convert to Decimal for exact rounding
     multiplier = Decimal('1e{}'.format(-decimals))
     return float(Decimal(str(n)).quantize(multiplier, rounding=ROUND_HALF_UP))
+	"""
 
 class ChatSession:
 	def __init__(self, system_prompt=ATC_INIT_INSTRUCTIONS, aiTools=None):
@@ -289,13 +298,15 @@ class ChatSession:
 			tools=self.tools,
 			extra_body={
 				"provider": {
-					"sort": orProviderSort
+					"sort": orProviderSort,
+					#"only": ["google-vertex"]
 				},
 				"max_price": {"prompt": OPENROUTER_MAX_PROMPT_PRICE, "completion": OPENROUTER_MAX_COMPLETION_PRICE}
 			}
 		)
 		end = time.time()
-		print(f"AI response time: {end - start:.2f} seconds")
+		provider = response.model_extra.get("provider") or "unknown"
+		print(f"AI response time: {end - start:.2f} seconds, provider: {provider}")
 		#print(response)
 		global parsedAIResponse
 		finish_reason = response.choices[0].finish_reason
@@ -924,8 +935,9 @@ class ATCResponse:
 				aiResponse = aiResponse[:-3]
 			data = json.loads(aiResponse)
 						
-		except json.JSONDecodeError:
+		except json.JSONDecodeError as e:
 			print("Received non-JSON data:", aiResponse)
+			print("Exception: ", e, " position: ", e.pos, ", msg: ", e.msg)
 			return None
 		
 		self.ATC_VOICE=data.get("ATC_VOICE", "")

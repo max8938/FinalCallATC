@@ -25,7 +25,7 @@ class RadioPanel:
 	TransponderIdentButton: float = 0.0
 	TransponderCode: float = 0.0
 	MicrophoneSelect: float = 0.0
-	COM1AudioSelectButton: float = 0.0
+	COM1AudioSelectButton: float = 1.0
 	COM2AudioSelectButton: float = 0.0
 	COM3AudioSelectButton: float = 0.0
 	NAV1AudioSelectButton: float = 0.0
@@ -98,6 +98,14 @@ class RadioPanel:
 			#"TransponderIdentButton": [0x5258, 0x],
 			"TransponderMode":  [0x5258, 0xDE0B0],  # ATCAltitudeReportingSystem, ALT1=0.0, off=1.0, ALT2=2.0
 		},
+		"dr400": {
+			"COM1VolumeOutput": [0x7E0, 0xF48], # 
+			"COM1Frequency": [0x7E0, 0x1E58], # Communication.COM1Frequency
+			"AUXAudioSelectButton": [0x7E0, 0x2658], # Communication.PushToTalkLeft
+			"TransponderCode": [0x7E0, 0x3CB8], # Communication.TransponderCode
+			"TransponderIdentButton": [0x7E0, 0x4338],
+			"TransponderMode":  [0x7E0, 0x2888],  # off=0.0, on=2.0, alt=3.0
+		},
 	}
 
 	# Transmitting radio switch
@@ -121,6 +129,11 @@ class RadioPanel:
 			"AUX": 3.0,
 			
 		},
+		"dr400": {
+			"COM1": 0.0,
+			
+			
+		},
 	}
 
 	# Transponder modes
@@ -142,6 +155,12 @@ class RadioPanel:
 		"q400": {
 			"OFF": 1.0,
 			"ALT": 0.0,
+			
+		},
+		"dr400": {
+			"OFF": 0.0,
+			"ON": 2.0,
+			"ALT": 3.0,
 			
 		},
 	}

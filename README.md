@@ -13,7 +13,7 @@ This is still a work in progress, the code is far from stellar, but it works :)
 - Communicating with ATC using voice and hearing their replies.
 - Push to talk either by holding top button of the left VR controller (e.g. triangle on PSVR2 controller. OpenVR needed) or activating AUX switch/button on audio panel or holding PTT button in app's window.
 - AI can calculate heading and distance to the start of the final approach for the destination runway.
-- Working audio panel, radios & transponder controls on Cessna 172, Baron 58 and Q400. For other planes, radio panel cannot be controlled at the moment.
+- Working audio panel, radios & transponder controls on Cessna 172, Baron 58, Robin DR400 and Q400. For other planes, radio panel cannot be controlled at the moment.
 - Individual radio volume controls.
 - You can hear ATC only if tuned to the correct frequency and radio is active on the audio panel.
 - ATC can hear you only if you are tuned correctly and the correct mic output is selected.
@@ -61,6 +61,7 @@ AI and Azure API access is not hard to set up. Costs: max couple of dozen cents 
 - Install Python, pip3 and its needed libraries:
 	- Windows: pip3 install pygame python-dotenv pycaw pydub reportlab openvr azure-cognitiveservices-speech openai psutil audioop-lts AppKit
 	- Mac: pip3 install pygame python-dotenv pycaw pydub reportlab azure-cognitiveservices-speech openai psutil audioop-lts AppKit
+- Enable "Broadcast flight info to IP address" in Aerofly Settings/Miscellaneous and set "Broadcast IP address" to .255 IP address in the same range as your computer. E.g. if your computer's IP address is 192.168.1.33, set Broadcase IP address to 192.168.1.255. Set "Broadcast IP port" to 49002.
 
 **Running:**
 - (optional for VR) start SteamVR
