@@ -601,10 +601,10 @@ def canMessageBeHeard(senderFrequency):
 	com1FrequencyMHz = round_half_up(radioPanel.COM1Frequency/1000000, 2)
 	com2FrequencyMHz = round_half_up(radioPanel.COM2Frequency/1000000, 2)
 	#print("senderFrequency: ", senderFrequency, " com1FrequencyMHz: ", com1FrequencyMHz, " com2FrequencyMHz: ", com2FrequencyMHz, " COM1AudioSelectButton: ", radioPanel.COM1AudioSelectButton, " COM2AudioSelectButton: ", radioPanel.COM2AudioSelectButton)
-	if senderFrequency == com1FrequencyMHz and radioPanel.COM1AudioSelectButton: 
+	if senderFrequency >= com1FrequencyMHz - 0.01 and senderFrequency <= com1FrequencyMHz + 0.01 and radioPanel.COM1AudioSelectButton: 
 		print("can hear " + str(senderFrequency) +" on COM1")
 		return "COM1"
-	elif senderFrequency == com2FrequencyMHz and radioPanel.COM2AudioSelectButton:
+	elif senderFrequency >= com2FrequencyMHz - 0.01 and senderFrequency <= com2FrequencyMHz + 0.01 and radioPanel.COM2AudioSelectButton:
 		print("can hear " + str(senderFrequency) +" on COM2")
 		return "COM2"
 	elif (senderFrequency == 0):
@@ -622,10 +622,10 @@ def radioTunedToFrequency(senderFrequency):
 	com1FrequencyMHz = round_half_up(radioPanel.COM1Frequency/1000000, 2)
 	com2FrequencyMHz = round_half_up(radioPanel.COM2Frequency/1000000, 2)
 	#print("senderFrequency: ", senderFrequency, " com1FrequencyMHz: ", com1FrequencyMHz, " com2FrequencyMHz: ", com2FrequencyMHz, " COM1AudioSelectButton: ", radioPanel.COM1AudioSelectButton, " COM2AudioSelectButton: ", radioPanel.COM2AudioSelectButton)
-	if senderFrequency == com1FrequencyMHz: 
+	if senderFrequency >= com1FrequencyMHz - 0.01 and senderFrequency <= com1FrequencyMHz + 0.01: 
 		print("Returning COM1 as tuned to " + str(senderFrequency))
 		return "COM1"
-	elif senderFrequency == com2FrequencyMHz:
+	elif senderFrequency >= com2FrequencyMHz - 0.01 and senderFrequency <= com2FrequencyMHz + 0.01:
 		print("Returning COM2 as tuned to " + str(senderFrequency))
 		return "COM2"
 	elif (senderFrequency == 0):
@@ -659,12 +659,17 @@ def canPilotBeHeard():
 	print("Reachable frequencies: ", reachableFrequencies)
 
 	# Allow sending pilot's message if the freq is valid or in case we do not have radio panel info (-1.0)
-	if transmittingFrequency in validFrequencies or transmittingFrequency == -1.0:
+	if transmittingFrequency == -1.0:
 		return True
-	else:		
-		print("Pilot transmitting frequency ", transmittingFrequency, " is not among the listening/in range stations.")
-		pygame.mixer.Sound('radio-static-1s.mp3').play()
-		return False
+	
+	for frequency in validFrequencies:
+		if frequency >= transmittingFrequency - 0.01 and frequency <= transmittingFrequency + 0.01:
+			return True
+	
+	
+	print("Pilot transmitting frequency ", transmittingFrequency, " is not among the listening/in range stations.")
+	pygame.mixer.Sound('radio-static-1s.mp3').play()
+	return False
 
 def pilotTransmittingFrequency():
 	global radioPanel
@@ -1477,14 +1482,14 @@ def onGameVariableChange(name, old, new):
 	global atisPlayingOnRadio
 	if not atisPlaying:
 		if (name == "COM1Frequency" or name == "COM1AudioSelectButton") and radioPanel.COM1AudioSelectButton:
-			if aeroflySettings.origin_airport_atis_frequency and round_half_up(radioPanel.COM1Frequency/1000000, 2) == round_half_up(aeroflySettings.origin_airport_atis_frequency,2):
+			if aeroflySettings.origin_airport_atis_frequency and aeroflySettings.origin_airport_atis_frequency >= radioPanel.COM1Frequency/1000000 - 0.01 and aeroflySettings.origin_airport_atis_frequency <= radioPanel.COM1Frequency/1000000 + 0.01:
 				startPlayingATIS(aeroflySettings.origin_name, "COM1")
-			elif aeroflySettings.destination_airport_atis_frequency and round_half_up(radioPanel.COM1Frequency/1000000, 2) == round_half_up(aeroflySettings.destination_airport_atis_frequency,2):
+			elif aeroflySettings.destination_airport_atis_frequency and aeroflySettings.destination_airport_atis_frequency >= radioPanel.COM1Frequency/1000000 - 0.01 and aeroflySettings.destination_airport_atis_frequency <= radioPanel.COM1Frequency/1000000 + 0.01:
 				startPlayingATIS(aeroflySettings.destination_name, "COM1")
 		elif (name == "COM2Frequency" or name == "COM2AudioSelectButton") and radioPanel.COM2AudioSelectButton:
-			if aeroflySettings.origin_airport_atis_frequency and round_half_up(radioPanel.COM2Frequency/1000000, 2) == round_half_up(aeroflySettings.origin_airport_atis_frequency,2):
+			if aeroflySettings.origin_airport_atis_frequency and aeroflySettings.origin_airport_atis_frequency >= radioPanel.COM2Frequency/1000000 - 0.01 and aeroflySettings.origin_airport_atis_frequency <= radioPanel.COM2Frequency/1000000 + 0.01:
 				startPlayingATIS(aeroflySettings.origin_name, "COM2")
-			elif aeroflySettings.destination_airport_atis_frequency and round_half_up(radioPanel.COM2Frequency/1000000, 2) == round_half_up(aeroflySettings.destination_airport_atis_frequency,2):
+			elif aeroflySettings.destination_airport_atis_frequency and aeroflySettings.destination_airport_atis_frequency >= radioPanel.COM2Frequency/1000000 - 0.01 and aeroflySettings.destination_airport_atis_frequency <= radioPanel.COM2Frequency/1000000 + 0.01:
 				startPlayingATIS(aeroflySettings.destination_name, "COM2")
 	elif atisPlaying and atisPlayingOnRadio == "COM1":
 		if (name == "COM1AudioSelectButton" and not radioPanel.COM1AudioSelectButton) or name == "COM1Frequency":

@@ -11,7 +11,7 @@ This is still a work in progress, the code is far from stellar, but it works :)
 **Functionalities:**
 - AI ATC (all services), working on actual airport frequencies (origin and destination airports from the active navigation plan).
 - Communicating with ATC using voice and hearing their replies.
-- Push to talk either by holding top button of the left VR controller (e.g. triangle on PSVR2 controller. OpenVR needed) or activating AUX switch/button on audio panel or holding PTT button in app's window.
+- Push to talk either by holding top button of the left VR controller (e.g. triangle on PSVR2 controller. OpenVR needed), or using Push-to-talk button in airplane (if visible), or activating AUX switch/button on audio panel or holding PTT button in app's window.
 - AI can calculate heading and distance to the start of the final approach for the destination runway.
 - Working audio panel, radios & transponder controls on Cessna 172, Baron 58, Robin DR400 and Q400. For other planes, radio panel cannot be controlled at the moment.
 - Individual radio volume controls.
