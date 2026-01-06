@@ -1,0 +1,44 @@
+<[file][][]
+    <[modelmanager][][]
+        <[pointer_list_tmuniverse][DynamicObjects][]
+
+			<[sender][SenderCOM1Volume][]
+                <[string8][Input][COM1Volume.Output]>
+                <[string8][Message][Communication.COM1Volume]>
+                //<[string8][Qualifiers][ discrete ]>
+            >
+			
+			<[sender][SenderCOM1AudioSelect][]
+                <[string8][Input][COM1AudioSelect.Output]>
+                <[string8][Message][Communication.COM1AudioSelect]>
+                <[string8][Qualifiers][ discrete ]>
+            >
+			
+			<[sender][SenderCOM2Volume][]
+                <[string8][Input][COM2Volume.Output]>
+                <[string8][Message][Communication.COM2Volume]>
+                <[string8][Qualifiers][ discrete ]>
+            >
+			
+			<[sender][SenderCOM2AudioSelect][]
+                <[string8][Input][COM2AudioSelect.Output]>
+                <[string8][Message][Communication.COM2AudioSelect]>
+                <[string8][Qualifiers][ discrete ]>
+            >
+			
+			<[sender][SenderAUXAudioSelect][]
+                <[string8][Input][AUXAudioSelect.Output]>
+                <[string8][Message][Communication.AUXAudioSelect]>
+                <[string8][Qualifiers][ discrete ]>
+            >
+			
+			<[sender][SenderMicrophoneSelect][]
+                <[string8][Input][IntercomMicrophoneSelectSwitch.Output]>
+                <[string8][Message][Communication.MicrophoneSelect]>
+                <[string8][Qualifiers][ discrete ]>
+            >
+			
+			
+		>
+    >
+>

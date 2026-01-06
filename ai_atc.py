@@ -22,8 +22,9 @@ OPENAI_MODEL = "gpt-4.1-mini"
 #OPENROUTER_MODEL = "deepseek/deepseek-chat-v3.1" 
 #OPENROUTER_MODEL = "deepseek/deepseek-v3.2-exp"   # bad for ATC 
 #OPENROUTER_MODEL = "deepseek/deepseek-chat-v3-0324"
-OPENROUTER_MODEL = "deepseek/deepseek-chat" # best for ATC so far
+#OPENROUTER_MODEL = "deepseek/deepseek-chat" # great for ATC so far
 #OPENROUTER_MODEL = "deepseek/deepseek-v3.1-terminus"
+OPENROUTER_MODEL = "google/gemini-3-flash-preview" # seems even better than deepseek for ATC, and faster
 
 # If using Openrouter, which providers to prefer:
 OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT = "throughput" 
@@ -32,7 +33,7 @@ OPENROUTER_PROVIDER_SORT_LATENCY = "latency"
 
 # These control max prices (in USD) that we want to pay per million prompt (input) and completion (output) tokens
 OPENROUTER_MAX_PROMPT_PRICE = 0.8
-OPENROUTER_MAX_COMPLETION_PRICE = 2.0
+OPENROUTER_MAX_COMPLETION_PRICE = 3.0
 
 
 # Enable interaction with the radio panel (COM1/COM2 volumes and frequencies, audio routing, transponder)
@@ -143,7 +144,7 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - Do not give takeoff clearance until I confirm that I am holding at runway. 
 - Ignore minor deviations from the agreed heading, speed, altitude, frequency, etc. 
 - Warn me if I am entering protected airspace without authorization. 
-- If I do not respond to urgent messages, try sending them on guard frequency 121.5 MHz. 
+- Always approve my altitude change requests.
 - Always respond on the same frequency that I sent the message on, including guard frequency. Never respond on a different frequency.
 - Always respond as the entity whose frequency that is, not another one. 
 - AFIS service does not issue clearances, only advisories. Pilots tell say their intentions on that frequency and not ask for clearances.
@@ -229,6 +230,7 @@ auxButtonOn = False
 chatterTimer = None
 transponderIdentButtonPressed = False
 trafficChatMessageCnt = 0
+onGroundTimer = None
 
 recognizer_thread = None
 recognizer_controller = None
@@ -1430,6 +1432,10 @@ def generateATISRecording(airportCode, airportName, time, runway, wind_strength,
 
 	audio = addRadioEffectToRecording(atisTempFilename, atisFilename)
 
+def onGroundEvent():
+	print("Detected landing.")
+	message = "Touchdown"
+	sendMessageToAI(message)
 
 def onGameVariableChange(name, old, new):
 	global atcSoundCOM1
@@ -1471,7 +1477,21 @@ def onGameVariableChange(name, old, new):
 		print("Transponder IDENT button pressed.")
 		handleIdentButtonPress()
 		return
-		
+	
+	if name == "AircraftOnGround":
+		global onGroundTimer
+		if old == 0.0 and new == 1.0:
+			print("Starting onGround timer.")
+			if onGroundTimer:
+				onGroundTimer.cancel()
+			onGroundTimer = threading.Timer(3.0, onGroundEvent) 
+			onGroundTimer.start()
+		elif old == 1.0 and new == 0.0:
+			print("Stopping onGround timer.")
+			if onGroundTimer:
+				onGroundTimer.cancel()
+			
+		return
 
 	# TODO react on transponder code change
 

@@ -1,0 +1,58 @@
+<[file][][]
+    <[modelmanager][][]
+        <[pointer_list_tmuniverse][DynamicObjects][]
+
+
+			
+			<[sender][SenderCOM1Volume][]
+                <[string8][Input][COM1Volume.Output]>
+                <[string8][Message][Communication.COM1Volume]>
+                <[string8][Qualifiers][ discrete ]>
+            >
+			
+			<[sender][SenderSpeakerCOM1Switch][]
+                <[string8][Input][SpeakerCOM1Switch.Output]>
+                <[string8][Message][Communication.COM1AudioSelect]>
+                <[string8][Qualifiers][ discrete ]>
+            >
+			
+			<[sender][SenderCOM2Volume][]
+                <[string8][Input][COM2Volume.Output]>
+                <[string8][Message][Communication.COM2Volume]>
+                <[string8][Qualifiers][ discrete ]>
+            >
+			
+			<[sender][SenderSpeakerCOM2Switch][]
+                <[string8][Input][SpeakerCOM2Switch.Output]>
+                <[string8][Message][Communication.COM2AudioSelect]>
+                <[string8][Qualifiers][ discrete ]>
+            >
+			
+			<[sender][SenderSpeakerAUXSwitch][]
+                <[string8][Input][SpeakerAUXSwitch.Output]>
+                <[string8][Message][Communication.AUXAudioSelect]>
+                <[string8][Qualifiers][ discrete ]>
+            >
+			
+			<[sender][SenderMicrophoneSelector][]
+                <[string8][Input][MicrophoneSelector.Output]>
+                <[string8][Message][Communication.MicrophoneSelect]>
+                <[string8][Qualifiers][ discrete ]>
+            >
+			
+			<[sender][SenderTransponderMode][]
+                <[string8][Input][TransponderMode.Output]>
+                <[string8][Message][Communication.TransponderMode]>
+                <[string8][Qualifiers][ discrete ]>
+            >
+			
+			<[sender][SenderTransponderIdent][]
+                <[string8][Input][Transponder.OutputIdent]>
+                <[string8][Message][Communication.TransponderIdent]>
+                <[string8][Qualifiers][ discrete ]>
+            >
+			
+			
+		>
+    >
+>

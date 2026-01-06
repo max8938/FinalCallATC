@@ -30,7 +30,7 @@ This is still a work in progress, the code is far from stellar, but it works :)
 **Requirements:**
 - Windows for full functionalities. Most work on Mac as well, except radio panel controls; ATC can be controlled via its app window.
 - Python (v3.13 works fine for me) + all needed libraries installed
-- Deep Seek or OpenAI AI API access (Deep Seek gives a bit better responses, in my experience, but might be a bit slower)
+- Openrouter, Deep Seek or OpenAI AI API access (Gemini 3 Flash Preview model via Openrouter seems the best so far)
 - Azure voice services API access
 - (optional) OpenVR for PTT control via VR controller
 - (optional) OpenKneeboard (or similar overlay app) for displaying radio log files in flatscreen and VR
@@ -38,7 +38,7 @@ This is still a work in progress, the code is far from stellar, but it works :)
 AI and Azure API access is not hard to set up. Costs: max couple of dozen cents per hour (if it is talking all the time).
 
 **TODO:**
-- Add support for more planes, but this is not easy (need to find values in game memory for each one separately. This needs to be updated after each game update.). IPACS, please add state of all audio panel, radio and transponder controls to the integration dll to make this much easier.
+- Add support for more planes
 - Add more voices and regional accents
 - Periodically send telemetry to AI so ATC can contact the plane if needed
 - Ability to tune to stations other than origin and destination airports
@@ -62,7 +62,8 @@ AI and Azure API access is not hard to set up. Costs: max couple of dozen cents 
 	- Windows: pip3 install pygame python-dotenv pycaw pydub reportlab openvr azure-cognitiveservices-speech openai psutil audioop-lts AppKit
 	- Mac: pip3 install pygame python-dotenv pycaw pydub reportlab azure-cognitiveservices-speech openai psutil audioop-lts AppKit
 - Enable "Broadcast flight info to IP address" in Aerofly Settings/Miscellaneous and set "Broadcast IP address" to .255 IP address in the same range as your computer. E.g. if your computer's IP address is 192.168.1.33, set Broadcase IP address to 192.168.1.255. Set "Broadcast IP port" to 49002.
-
+- Copy files and folders from "customizations" folder to Aerofly FS4 user folder (C:\Users\%USERNAME%\Documents\Aerofly FS 4)
+- 
 **Running:**
 - (optional for VR) start SteamVR
 - If you want to use a non-supported plane, set ENABLE_RADIO_PANEL = False near the top of ai_atc.py file.
@@ -76,7 +77,7 @@ AI and Azure API access is not hard to set up. Costs: max couple of dozen cents 
 - If you speak on freq with no listening stations, you will hear radio static. If you speak to a station but do not enable that radio in the audio panel, they will hear you but you will hear just 2 warning tones.
 
 Wishlist for IPACS to make this better:
-- Add following to the integration dll: radio volumes, active frequencies, audio panel controls, transponder code/mode/ident button press, navigation plan, plane model, weather info (wind, visibility, clouds). Also would be nice: nearby airports.
+- Add following sender nodes to aircraft TMD files: radio volumes, active frequencies, audio panel controls, transponder code/mode/ident button press, navigation plan, plane model, weather info (wind, visibility, clouds). Also would be nice: nearby airports.
 - Send traffic with UDP telemetry (XTRAFFIC object)
 
 Thanks to Aerofly Missionsgerät for main.mcf parsing logic and aeroflyToSayintentions (need to see how to integrate with them) for list of airports and frequencies.
