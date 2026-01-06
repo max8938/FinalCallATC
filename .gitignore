@@ -369,3 +369,5 @@ FodyWeavers.xsd
 /RadioLog.pdf
 /RadioLogDebug.pdf
 /AirportDiagrams
+/additional messages in aircraft TMD.txt
+/test_read_dll.py
