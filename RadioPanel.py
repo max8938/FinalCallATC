@@ -10,10 +10,6 @@ import struct
 import time
 import json
 
-if sys.platform == "win32":
-	import MemoryReader
-
-# If radio panel is not functioning correctly, game .exe might have been updated. In that case, likely just the BASE_OFFSET in MemoryReader.py needs to be updated.
 
 POLLING_INTERVAL = 0.2	# seconds
 
