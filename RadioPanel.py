@@ -65,69 +65,7 @@ class RadioPanel:
 			"AircraftOnRunway": "Aircraft.OnRunway",
 		}
 
-	# static offsets
-	OFFSETS = {
-		"c172": {
-			"COM1VolumeOutput": [0x13F0, 0xAF8],
-			"COM2VolumeOutput": [0x13F0, 0x1A98],
-			#"TransponderReply": [0x0CC8, 0x31B8],
-			"TransponderIdentButton": [0x13F0, 0x3358],
-			"TransponderCode": [0x13F0, 0x3948],
-			"MicrophoneSelect": [0x13F0, 0x40728],
-			"COM1AudioSelectButton": [0x13F0, 0x40918],
-			"COM2AudioSelectButton": [0x13F0, 0x40C88],
-			"COM3AudioSelectButton": [0x13F0, 0x40FC8],
-			"NAV1AudioSelectButton": [0x13F0, 0x41308],
-			"NAV2AudioSelectButton": [0x13F0, 0x41648],
-			"MKRAudioSelectButton": [0x13F0, 0x41988],
-			"DME1AudioSelectButton": [0x13F0, 0x41CC8],
-			"ADF1AudioSelectButton": [0x13F0, 0x42008],
-			"AUXAudioSelectButton": [0x13F0, 0x42348],
-			"MONAudioSelectButton": [0x13F0, 0x42688],
-			"NAV1VolumeOutput": [0x13F0, 0x43F68],
-			"NAV2VolumeOutput": [0x13F0, 0x44A78],
-			"COM1Frequency":  [0x13F0, 0x1148],
-			"COM1StandbyFrequency":	 [0x13F0, 0x1150],
-			"COM2Frequency":  [0x13F0, 0x20E8],
-			"COM2StandbyFrequency":	 [0x13F0, 0x20F0],
-			"TransponderMode":	[0x13F0, 0x28F8],  # off=0.0, SBY, TST, ON, ALT
-			"PushSpeaker":	[0x13F0, 0x405F8],
-		},
-		"b58": {
-			"COM1VolumeOutput": [0xF20, 0xA0, 0xB0, 0xA0, 0xE8],
-			"COM2VolumeOutput": [0xF20, 0xA0, 0xC18],
-			"MicrophoneSelect": [0x1228, 0xB88],
-			"COM1Frequency": [0xF20, 0xA0, 0x948],
-			"COM2Frequency": [0xFC0, 0xA0, 0x948],
-			"COM1AudioSelectButton": [0x1228, 0xD78],
-			"COM2AudioSelectButton": [0x1228, 0xEB8],
-			"AUXAudioSelectButton": [0x1228, 0x1638],
-			"TransponderCode": [0xFC0, 0xA0, 0x1A78],
-			"TransponderIdentButton": [0xFC0, 0xA0, 0x10B8],
-			"TransponderMode":	[0xFC0, 0xA0, 0xC18],  # off=0.0, SBY, ON, ALT, TST
-		},
-		"q400": {
-			"COM1VolumeOutput": [0x5258, 0x19A28], # ARCDU1.VHF1.Volume
-			"COM2VolumeOutput": [0x5258, 0x1A278], # ARCDU1.VHF2.Volume
-			"MicrophoneSelect": [0x5258, 0x1F8F8], # ARCDU1.MicrophoneSelector
-			"COM1Frequency": [0x5258, 0x6F8], # Communication.COM1Frequency
-			"COM2Frequency": [0x5258, 0x1138], # Communication.COM2Frequency
-			"COM1AudioSelectButton": [0x5258, 0x194E8], # ARCDU1.VHF1.AudioSelect
-			"COM2AudioSelectButton": [0x5258, 0x19D38], # ARCDU1.VHF2.AudioSelect
-			"AUXAudioSelectButton": [0x5258, 0x1ADD8], # ARCDU1.AUX1.AudioSelect
-			"TransponderCode": [0x5258, 0xDDE10], # SquawkCode
-			#"TransponderIdentButton": [0x5258, 0x],
-			"TransponderMode":	[0x5258, 0xDE0B0],	# ATCAltitudeReportingSystem, ALT1=0.0, off=1.0, ALT2=2.0
-		},
-		"dr400": {
-			"COM1VolumeOutput": [0x7E0, 0xF48], # 
-			"COM1Frequency": [0x7E0, 0x1E58], # Communication.COM1Frequency
-			"AUXAudioSelectButton": [0x7E0, 0x2658], # Communication.PushToTalkLeft
-			"TransponderCode": [0x7E0, 0x3CB8], # Communication.TransponderCode
-			"TransponderIdentButton": [0x7E0, 0x4338],
-			"TransponderMode":	[0x7E0, 0x2888],  # off=0.0, on=2.0, alt=3.0
-		},
-	}
+	
 
 	# Transmitting radio switch
 	MICROPHONE_OUTPUT = {
@@ -256,7 +194,10 @@ class RadioPanel:
 						#print(f"\nAvailable data keys: {list(game_data.keys())}")
 						
 						for name, message in self.VARIABLE_MAP.items():
-							new_val = game_data.get(message, 0) 
+							new_val = game_data.get(message, -9999) 
+							if new_val == -9999: # key not found
+								continue
+							
 							old_val = getattr(self, name)
 
 							if new_val != old_val:  # only trigger if value changed
