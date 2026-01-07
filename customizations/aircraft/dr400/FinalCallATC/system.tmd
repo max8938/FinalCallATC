@@ -1,0 +1,22 @@
+<[file][][]
+    <[modelmanager][][]
+        <[pointer_list_tmuniverse][DynamicObjects][]
+
+
+			
+			<[sender][SenderCOM1Volume][]
+                <[string8][Input][COM1Volume.Output]>
+                <[string8][Message][Communication.COM1Volume]>
+                <[string8][Qualifiers][ discrete ]>
+            >
+			
+			
+			
+            
+			
+            
+			
+			
+		>
+    >
+>
