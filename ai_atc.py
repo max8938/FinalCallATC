@@ -46,7 +46,6 @@ VR_CONTROLLER_BUTTON_ID = 1
 
 # END OF SETTINGS
 
-from telemetry import Telemetry, Attitude, Location
 import RadioPanel
 import mcfparser
 import airport_diagrams_generator
@@ -209,7 +208,6 @@ entityVoices = {}
 speech_config = None
 parsedAIResponse = None
 radioPanel = None
-gameTelemetry: Optional[Telemetry] = None
 atcSessionStarted = False
 atisPlaying = False
 atisPlayingOnRadio = ""
@@ -218,8 +216,6 @@ atcSoundCOM1 = None
 atcSoundCOM2 = None
 atcChannelCOM1 = None
 atcChannelCOM2 = None
-current_attitude: Optional[Attitude] = None
-current_location: Optional[Location] = None
 ttsengine = None
 synthesizer = None
 recognizer = None
@@ -419,12 +415,12 @@ def getHeadingToLocation(currentLatitude, currentLongitude, destLatitude, destLo
 
 
 def getRelativePositionDescription():
-	if not gameTelemetry or not gameTelemetry.current_location or not gameTelemetry.current_location:
+	if not radioPanel or not radioPanel.AircraftLatitude or not radioPanel.AircraftLongitude:
 		return "unknown position"
 	
 	# Get relative position of the plane to the destination airport
-	currentLatitude = gameTelemetry.current_location.latitude
-	currentLongitude = gameTelemetry.current_location.longitude
+	currentLatitude = round(math.degrees(radioPanel.AircraftLatitude), 5) 
+	currentLongitude = round(math.degrees(radioPanel.AircraftLongitude), 5) 
 	distanceToDestination = getDistanceToLocation(currentLatitude, currentLongitude, aeroflySettings.destination_airport_latitude, aeroflySettings.destination_airport_longitude)
 	distancetoOrigin = getDistanceToLocation(currentLatitude, currentLongitude, aeroflySettings.origin_airport_latitude, aeroflySettings.origin_airport_longitude)
 	headingToDestination = getHeadingToLocation(currentLatitude, currentLongitude, aeroflySettings.destination_airport_latitude, aeroflySettings.destination_airport_longitude)
@@ -466,12 +462,12 @@ def bearingToDirection(heading_deg: float) -> str:
 
 def getDistanceToLocation(currentLatitude, currentLongitude, destLatitude, destLongitude):
 	# Calculate distance in nautical miles between two lat/lon points using Haversine formula
-	if not gameTelemetry or not gameTelemetry.current_location or not gameTelemetry.current_location:
+	if not radioPanel or not radioPanel.AircraftLatitude or not radioPanel.AircraftLongitude:
 		return 0.0
 		
 	R = 6371.0  # Earth radius in kilometers
-	lat1 = math.radians(currentLatitude)
-	lon1 = math.radians(currentLongitude)
+	lat1 = radioPanel.AircraftLatitude
+	lon1 = radioPanel.AircraftLongitude
 	lat2 = math.radians(destLatitude)
 	lon2 = math.radians(destLongitude)
 	dlon = lon2 - lon1
@@ -529,9 +525,9 @@ def getReachableFrequencies():
 
 	currentLatitude = 0.0
 	currentLongitude = 0.0
-	if gameTelemetry and gameTelemetry.current_location:
-		currentLatitude = gameTelemetry.current_location.latitude
-		currentLongitude = gameTelemetry.current_location.longitude
+	if radioPanel.AircraftLatitude and radioPanel.AircraftLongitude:
+		currentLatitude = round(math.degrees(radioPanel.AircraftLatitude), 5)
+		currentLongitude = round(math.degrees(radioPanel.AircraftLongitude), 5)
 	
 	# Add reachable frequencies from origin. If current location is unknown, station reach will be ignored
 	distanceFromOrigin = 0.0
@@ -703,6 +699,9 @@ def pilotTransmittingFrequency():
 
 	return pilotTransmittingFrequency
 
+def radiant_to_heading(r):
+    heading = 90 - math.degrees(r)
+    return heading % 360
 
 def sendMessageToAI(cleanedtext):
 	timestamp = datetime.now().strftime("%H:%M:%S")
@@ -711,11 +710,12 @@ def sendMessageToAI(cleanedtext):
 	currentLocation = ""
 	currentAltitude = 0.0
 	currentGroundspeed = ""
-	if gameTelemetry and gameTelemetry.current_attitude and gameTelemetry.current_location:
-		currentHeading = "Heading " + str(int(gameTelemetry.current_attitude.true_heading))
-		currentLocation = ", location Latitude: " + str(gameTelemetry.current_location.latitude) + ", location Longitude: " + str(gameTelemetry.current_location.longitude)
-		currentGroundspeed = ", Groundspeed " + str(int(gameTelemetry.current_location.groundspeed_m_s * 1.94384)) + " kn" # convert m/s to knots
-		currentAltitude = gameTelemetry.current_location.altitude_msl * FEET_IN_METER
+	
+	if radioPanel:
+		currentHeading = "Heading " + str(int(radiant_to_heading(radioPanel.AircraftTrueHeading)))
+		currentLocation = ", location Latitude: " + str(round(math.degrees(radioPanel.AircraftLatitude), 5)) + ", location Longitude: " + str(round(math.degrees(radioPanel.AircraftLongitude),5))
+		currentGroundspeed = ", Groundspeed " + str(int(radioPanel.AircraftGroundSpeed * 1.94384)) + " kn" # convert m/s to knots
+		currentAltitude = round(radioPanel.AircraftAltitude,0) * FEET_IN_METER
 
 	# Send squawk code if transponder is ON or squawk + altitude if on ALT
 	transponderCode = "0000"
@@ -1108,44 +1108,7 @@ def addRadioEffectToRecording(fileName, newFileName):
 
 	return audio
 
-""" not used at the moment, automatically send telemetry updates to atc
-def send_telemetry_update():
-	global current_attitude
-	global current_location
-	#global client
-	global chatSession
-	
-	if communicationWithAIInProgress == True:
-		print("telemetry paused, not sending")
-		threading.Timer(TELEMETRY_SEND_INTERVAL, send_telemetry_update).start()
-		return
 
-	if current_location is None or current_attitude is None:
-		# Reschedule the next execution (recursive)
-		print("Full telemetry missing")
-		threading.Timer(TELEMETRY_SEND_INTERVAL, send_telemetry_update).start()
-		return
-
-	timestamp = time.strftime('%H:%M:%S')
-	print(f"Sending telemetry update at {timestamp}")  
-
-	#todo - send same telemetry as when sending speech to ai
-	telemetry = current_attitude.timestamp.strftime("%H:%M:%S") + " " + str(current_attitude) + " " + str(current_location)
-	print(telemetry)
-
-
-	chatSession.add_user_message(telemetry)
-	response = chatSession.get_response()
-	print("response for telemetry sent at " + timestamp + ": ", response)
-	atcResponse = parseATCResponse(response)
-	printATCInstructions(atcResponse.ATC_VOICE, atcResponse.COMMENTS, True)	
-	#printATCInstructions(getATCInstructions(response), getAIComment(response), True)
-	say_response(response)
-
-
-	# Reschedule the next execution (recursive)
-	threading.Timer(TELEMETRY_SEND_INTERVAL, send_telemetry_update).start()
-"""
 
 
 def controllerInputListen():
@@ -2072,10 +2035,7 @@ def main():
 	#global chatSession
 	#chatSession = ChatSession(ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, ATC_AI_TOOLS)
 	
-	# Start receiving UDP telemetry
-	global gameTelemetry
-	gameTelemetry = Telemetry()
-	
+
 	# Delete old radio log files
 	#deleteRadioLogFiles()
 	

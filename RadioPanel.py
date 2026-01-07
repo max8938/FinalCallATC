@@ -48,6 +48,11 @@ class RadioPanel:
 	aircraft_name = None
 	AircraftOnGround: float = -1.0
 	AircraftOnRunway: float = -1.0
+	AircraftLongitude: float = 0.0
+	AircraftLatitude: float = 0.0
+	AircraftTrueHeading: float = 0.0
+	AircraftGroundSpeed: float = 0.0
+	AircraftAltitude: float = 0.0
 	
 	VARIABLE_MAP = {
 			"COM1VolumeOutput": "Communication.COM1Volume",
@@ -63,6 +68,11 @@ class RadioPanel:
 			"TransponderMode":	"Communication.TransponderMode",  
 			"AircraftOnGround": "Aircraft.OnGround",
 			"AircraftOnRunway": "Aircraft.OnRunway",
+			"AircraftLongitude": "Aircraft.Longitude",
+			"AircraftLatitude": "Aircraft.Latitude",
+			"AircraftTrueHeading": "Aircraft.TrueHeading",
+			"AircraftGroundSpeed": "Aircraft.GroundSpeed",
+			"AircraftAltitude": "Aircraft.Altitude",
 		}
 
 	
@@ -204,8 +214,13 @@ class RadioPanel:
 								# Ignore jumps to 0.0 for volume, that happens when volume control is grabbed in VR
 								if "VolumeOutput" in name and new_val == 0.0:
 									continue
-								
+
 								setattr(self, name, new_val)
+
+								# Do not send callback for heading, speed, location and altitude changes
+								if name in ["AircraftTrueHeading", "AircraftLongitude", "AircraftLatitude", "AircraftAltitude", "AircraftGroundSpeed"]:
+									continue
+
 								for cb in self._callbacks:
 									cb(name, old_val, new_val)
 				except json.JSONDecodeError as e:
