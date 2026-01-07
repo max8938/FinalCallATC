@@ -20,10 +20,10 @@ MAC_PLATFORM = sys.platform == "darwin"
 @dataclass
 class RadioPanel:
 	# fields
-	COM1VolumeOutput: float = 0.0
-	COM2VolumeOutput: float = 0.0
-	NAV1VolumeOutput: float = 0.0
-	NAV2VolumeOutput: float = 0.0
+	COM1VolumeOutput: float = 1.0
+	COM2VolumeOutput: float = 1.0
+	NAV1VolumeOutput: float = 1.0
+	NAV2VolumeOutput: float = 1.0
 	#TransponderReply: float = 0.0
 	TransponderIdentButton: float = 0.0
 	TransponderCode: float = 0.0
@@ -33,19 +33,12 @@ class RadioPanel:
 	COM3AudioSelectButton: float = 0.0
 	NAV1AudioSelectButton: float = 0.0
 	NAV2AudioSelectButton: float = 0.0
-	MKRAudioSelectButton: float = 0.0
-	DME1AudioSelectButton: float = 0.0
-	ADF1AudioSelectButton: float = 0.0
 	AUXAudioSelectButton: float = -1.0
-	MONAudioSelectButton: float = 0.0
 	COM1Frequency: float = 0.0
-	COM1StandbyFrequency: float = 0.0
 	COM2Frequency: float = 0.0
-	COM2StandbyFrequency: float = 0.0
 	TransponderMode: float = 0.0
 	PushSpeaker: float = 0.0
-	memoryReader = None
-	aircraft_name = None
+	AircraftName = None
 	AircraftOnGround: float = -1.0
 	AircraftOnRunway: float = -1.0
 	AircraftLongitude: float = 0.0
@@ -54,6 +47,7 @@ class RadioPanel:
 	AircraftGroundSpeed: float = 0.0
 	AircraftAltitude: float = 0.0
 	
+	# Mapping of variable names to shared memory keys/AF4 messages
 	VARIABLE_MAP = {
 			"COM1VolumeOutput": "Communication.COM1Volume",
 			"COM2VolumeOutput": "Communication.COM2Volume",
@@ -73,6 +67,7 @@ class RadioPanel:
 			"AircraftTrueHeading": "Aircraft.TrueHeading",
 			"AircraftGroundSpeed": "Aircraft.GroundSpeed",
 			"AircraftAltitude": "Aircraft.Altitude",
+			"AircraftName": "Aircraft.Name",
 		}
 
 	
@@ -138,7 +133,7 @@ class RadioPanel:
 	_thread: threading.Thread = field(default=None, init=False, repr=False)
 	_callbacks: List[Callable[[str, float, float], None]] = field(default_factory=list, init=False, repr=False)
 	
-	def __new__(cls, enablePanel, aircraft_name):
+	def __new__(cls, enablePanel):
 		if MAC_PLATFORM:
 			print("RadioPanel: Mac platform is not supported.")
 			return None
@@ -148,12 +143,9 @@ class RadioPanel:
 			
 		return super().__new__(cls)
 
-	def __init__(self, enablePanel, aircraft_name):
+	def __init__(self, enablePanel):
 		
 		
-		#global memoryReader
-		self.aircraft_name = aircraft_name
-		#memoryReader = MemoryReader.MemoryReader()
 		
 		self._stop_flag = False
 		self._thread = None
@@ -205,7 +197,7 @@ class RadioPanel:
 						
 						for name, message in self.VARIABLE_MAP.items():
 							new_val = game_data.get(message, -9999) 
-							if new_val == -9999: # key not found
+							if new_val == -9999: # key not found, do not update this value
 								continue
 							
 							old_val = getattr(self, name)

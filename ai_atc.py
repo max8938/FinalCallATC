@@ -37,7 +37,7 @@ OPENROUTER_MAX_COMPLETION_PRICE = 3.0
 
 
 # Enable interaction with the radio panel (COM1/COM2 volumes and frequencies, audio routing, transponder)
-# Currently suported only on Windows, for Cessna 172, Baron 58 and Q400 in Aerofly FS4
+# Currently suported only on Windows, for Cessna 172, Baron 58, DR400 and Q400 in Aerofly FS4
 ENABLE_RADIO_PANEL = True
 
 # VR controller mapping for Push to Talk. Assume controller 1 is at device index 1.
@@ -172,7 +172,7 @@ RADIO_REACH = {
 		"DEP": 50.0,
 		"GUARD": 99999.0,
 		"CENTER": 99999.0,
-		"OTHER": 15.0
+		"OTHER": 25.0
     }
 
 
@@ -241,14 +241,7 @@ def round_half_up(n, decimals=0):
 
 class ChatSession:
 	def __init__(self, system_prompt=ATC_INIT_INSTRUCTIONS, aiTools=None):
-		# Start with a system prompt to set the assistant's behavior
-		"""
-		if USE_DEEPSEEK == True:
-			self.client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
-		else:
-			self.client = OpenAI(api_key=OPENAI_API_KEY)
-			"""
-
+		
 		if AI_TYPE == "DEEPSEEK":
 			self.client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
 		elif AI_TYPE == "OPENROUTER":
@@ -676,7 +669,7 @@ def pilotTransmittingFrequency():
 		return -1.0
 
 	# Get status of microphone switch
-	mapping = radioPanel.MICROPHONE_OUTPUT[aeroflySettings.aircraft_model]
+	mapping = radioPanel.MICROPHONE_OUTPUT[radioPanel.AircraftName]
 	micSwitchValue =  getattr(radioPanel,"MicrophoneSelect")
 
 	# Match against options
@@ -722,7 +715,7 @@ def sendMessageToAI(cleanedtext):
 	transponderInfo = ", squawk: not sending"
 	# Get status of transponde mode switch
 	if radioPanel:
-		mapping = radioPanel.TRANSPONDER_MODE[aeroflySettings.aircraft_model]
+		mapping = radioPanel.TRANSPONDER_MODE[radioPanel.AircraftName]
 	
 		# Match against options
 		transponderMode = next(
@@ -792,7 +785,7 @@ def startATCSession():
 	say("ATC session started")
 	writeRadioLogToFile()
 	radioPanel = None
-	radioPanel = RadioPanel.RadioPanel(ENABLE_RADIO_PANEL, aeroflySettings.aircraft_model) # start reading radio panel
+	radioPanel = RadioPanel.RadioPanel(ENABLE_RADIO_PANEL) # start reading radio panel
 	print(radioPanel)
 	if radioPanel:
 		radioPanel.add_callback(onGameVariableChange)
@@ -1308,7 +1301,7 @@ def loadAeroflySettings():
 		ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = (ATC_INIT_INSTRUCTIONS + 
 			" Wind direction in degrees is " + str(aeroflySettings.wind_direction_in_degree) +
 			". Wind strength in knots is " + str(aeroflySettings.wind_strength) +
-			". My aircraft model is " + aeroflySettings.aircraft_model +
+			". My aircraft model is " + radioPanel.AircraftName +
 			". My flight plan is: cruise altitude " + str(int(aeroflySettings.cruise_altitude)) + " feet. " + 
 			". Origin airport code: " + aeroflySettings.origin_name + ", origin airport name: " + originAirportName + "(frequencies:" + originAirportFrequencies + ")" +
 			". Departure runway: "  + aeroflySettings.departure_runway + 
