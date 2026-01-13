@@ -25,6 +25,7 @@ OPENAI_MODEL = "gpt-4.1-mini"
 #OPENROUTER_MODEL = "deepseek/deepseek-chat" # great for ATC so far
 #OPENROUTER_MODEL = "deepseek/deepseek-v3.1-terminus"
 OPENROUTER_MODEL = "google/gemini-3-flash-preview" # seems even better than deepseek for ATC, and faster
+#OPENROUTER_MODEL = "google/gemini-2.5-flash"
 
 # If using Openrouter, which providers to prefer:
 OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT = "throughput" 
@@ -131,7 +132,8 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - If you see me make an error or not follow instructions, you will warn me as an atc would do. 
 - If I do not communicate as expected, you should warn me about that as well. 
 - Use the information about my origin and destination airport, and frequencies available at those airports, to choose as which entity you will communicate with me, and use names like 'Milan Tower" and 'Barcelona Ground', not airport codes. Do not make up frequencies, use only the ones in the flight plan.
-- Format your response as JSON, except when calling a tool/function. The response should contain what ATC says to me (without any other comments) in ATC_VOICE variable. You can send blank ATC_VOICE variable if there is nothing new that needs to be communicated to the pilot. Output only pure JSON-compliant text, do not use any markdown code.
+- Format your response as JSON. The response should contain what ATC says to me (without any other comments) in ATC_VOICE variable. Respond in normal sentences with interpunctions.
+- You can send blank ATC_VOICE variable if there is nothing new that needs to be communicated to the pilot. Output only pure JSON-compliant text, do not use any markdown code.
 - Put any comments or notes in COMMENTS variable.  
 - Put the name of the entity you are representing, like Paris Tower, in variable ENTITY. 
 - Answer only as entity on the frequency, not as another entity, and always on the same frequency that I sent the message on. No exceptions. 
@@ -148,7 +150,8 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - Always respond as the entity whose frequency that is, not another one. 
 - AFIS service does not issue clearances, only advisories. Pilots tell say their intentions on that frequency and not ask for clearances.
 - React to my transponder code appropriately.
-- Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz."""
+- Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz.
+- Always format your response as JSON."""
 #- Ignore minor frequency deviations, for example consider 131.675 same as 131.68 and do not mention it."""
 ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = ""
 
@@ -777,6 +780,13 @@ def startATCSession():
 	global entityVoices
 	global atcSessionStarted
 
+	radioPanel = None
+	radioPanel = RadioPanel.RadioPanel(ENABLE_RADIO_PANEL) # start reading radio panel
+	print(radioPanel)
+	if radioPanel:
+		radioPanel.add_callback(onGameVariableChange)
+		radioPanel.start_polling(GAME_VARIABLES_POLLING_INTERVAL)
+
 	loadAeroflySettings() # reload Aerofly settings
 	chatSession = ChatSession(ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, None)
 	deleteRadioLogFiles()
@@ -784,12 +794,7 @@ def startATCSession():
 	print("AI ATC SESSION START command")
 	say("ATC session started")
 	writeRadioLogToFile()
-	radioPanel = None
-	radioPanel = RadioPanel.RadioPanel(ENABLE_RADIO_PANEL) # start reading radio panel
-	print(radioPanel)
-	if radioPanel:
-		radioPanel.add_callback(onGameVariableChange)
-		radioPanel.start_polling(GAME_VARIABLES_POLLING_INTERVAL)
+	
 	
 	atcSessionStarted = True
 	global chatterTimer
@@ -1301,7 +1306,7 @@ def loadAeroflySettings():
 		ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = (ATC_INIT_INSTRUCTIONS + 
 			" Wind direction in degrees is " + str(aeroflySettings.wind_direction_in_degree) +
 			". Wind strength in knots is " + str(aeroflySettings.wind_strength) +
-			". My aircraft model is " + radioPanel.AircraftName +
+			#". My aircraft model is " + radioPanel.AircraftName +
 			". My flight plan is: cruise altitude " + str(int(aeroflySettings.cruise_altitude)) + " feet. " + 
 			". Origin airport code: " + aeroflySettings.origin_name + ", origin airport name: " + originAirportName + "(frequencies:" + originAirportFrequencies + ")" +
 			". Departure runway: "  + aeroflySettings.departure_runway + 

@@ -98,6 +98,11 @@ class RadioPanel:
 			
 			
 		},
+		"c90gtx": {
+			"COM1": 0.0,
+			"COM2": 1.0,
+			
+		},
 	}
 
 	# Transponder modes
@@ -125,6 +130,11 @@ class RadioPanel:
 			"OFF": 0.0,
 			"ON": 2.0,
 			"ALT": 3.0,
+			
+		},
+		"c90gtx": {
+			"SBY": 1.0,
+			"ALT": 4.0,
 			
 		},
 	}
@@ -244,7 +254,7 @@ def on_change(name, old, new):
 
 # for testing
 def main():
-	panel = RadioPanel(True, "c172")
+	panel = RadioPanel(True)
 	panel.add_callback(on_change)
 	panel.start_polling(POLLING_INTERVAL)
 
