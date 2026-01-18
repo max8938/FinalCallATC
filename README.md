@@ -61,9 +61,8 @@ AI and Azure API access is not hard to set up. Costs: max couple of dozen cents 
 - Install Python, pip3 and its needed libraries:
 	- Windows: pip3 install pygame python-dotenv pycaw pydub reportlab openvr azure-cognitiveservices-speech openai psutil audioop-lts AppKit
 	- Mac: pip3 install pygame python-dotenv pycaw pydub reportlab azure-cognitiveservices-speech openai psutil audioop-lts AppKit
-- Enable "Broadcast flight info to IP address" in Aerofly Settings/Miscellaneous and set "Broadcast IP address" to .255 IP address in the same range as your computer. E.g. if your computer's IP address is 192.168.1.33, set Broadcase IP address to 192.168.1.255. Set "Broadcast IP port" to 49002.
 - Copy files and folders from "customizations" folder to Aerofly FS4 user folder (C:\Users\%USERNAME%\Documents\Aerofly FS 4)
-- 
+
 **Running:**
 - (optional for VR) start SteamVR
 - If you want to use a non-supported plane, set ENABLE_RADIO_PANEL = False near the top of ai_atc.py file.

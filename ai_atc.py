@@ -6,7 +6,7 @@
 TELEMETRY_SEND_INTERVAL=60.0 
 
 RADIO_CHATTER_TIMER = 15.0 # How often will system attempt to create radio chatter between other stations, in seconds
-RADIO_CHATTER_PROBABILITY = 70.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
+RADIO_CHATTER_PROBABILITY = 40.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
 # For smaller airports (less frequencies), the chatter will be generated a bit less often. Chatter on GUARD (121.5) is rare, and frequent on CENTER (134.0).
 
 # Which AI service to use
@@ -142,7 +142,7 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - If I deviate from ATC instructions behave as real ATC would. 
 - If any numbers are typically read digit by digit, write them using letters, not digits.  
 - Ignore small mispronunciations on my side. 
-- Do not give takeoff clearance until I confirm that I am holding at runway. 
+- Do not give takeoff clearance until I confirm that I am holding at runway/ready for departure. 
 - Ignore minor deviations from the agreed heading, speed, altitude, frequency, etc. 
 - Warn me if I am entering protected airspace without authorization. 
 - Always approve my altitude change requests.
