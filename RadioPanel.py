@@ -226,9 +226,12 @@ class RadioPanel:
 								for cb in self._callbacks:
 									cb(name, old_val, new_val)
 				except json.JSONDecodeError as e:
-					print(f"JSON decode error: {e}")
+					print(f"JSON decode error: {e}\nData: ", data)
 				except KeyboardInterrupt:
 					print("\nStopped")
+				except Exception as e:
+					print(f"Error in polling loop: {e}\nData: ", data	)
+					
 				
 				
 				time.sleep(interval)

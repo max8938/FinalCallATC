@@ -5,8 +5,8 @@
 # NOT ACTIVE AT THE MOMENT How often should telemetry be sent to AI (besides sending with user messages), in seconds
 TELEMETRY_SEND_INTERVAL=60.0 
 
-RADIO_CHATTER_TIMER = 15.0 # How often will system attempt to create radio chatter between other stations, in seconds
-RADIO_CHATTER_PROBABILITY = 40.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
+RADIO_CHATTER_TIMER = 20.0 # How often will system attempt to create radio chatter between other stations, in seconds
+RADIO_CHATTER_PROBABILITY = 70.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
 # For smaller airports (less frequencies), the chatter will be generated a bit less often. Chatter on GUARD (121.5) is rare, and frequent on CENTER (134.0).
 
 # Which AI service to use
@@ -150,7 +150,8 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - Always respond as the entity whose frequency that is, not another one. 
 - AFIS service does not issue clearances, only advisories. Pilots tell say their intentions on that frequency and not ask for clearances.
 - React to my transponder code appropriately.
-- Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz.
+- Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz. 
+- An aviation advisor is available on 135.00 MHz frequency. They are not an ATC service, but can provide any kind of aviation information to the pilot.
 - Always format your response as JSON."""
 #- Ignore minor frequency deviations, for example consider 131.675 same as 131.68 and do not mention it."""
 ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = ""
@@ -579,6 +580,17 @@ def getReachableFrequencies():
 	centerFreq["receivingRadio"] = canMessageBeHeard(float(centerFreq["frequency_mhz"]))
 	if len(centerFreq["receivingRadio"]) > 0:
 		allFrequencies.append(centerFreq)
+
+	advisorFreq = {
+        "airport": "",
+		"description": "AVIATION ADVISOR",
+        "frequency_mhz": 135.00,
+		"airportType": "not_airport",
+        "airportSizeModifier": "1.0"
+      }
+	advisorFreq["receivingRadio"] = canMessageBeHeard(float(advisorFreq["frequency_mhz"]))
+	if len(advisorFreq["receivingRadio"]) > 0:
+		allFrequencies.append(advisorFreq)
 	
 	return allFrequencies
 	
@@ -905,6 +917,12 @@ def get_entity_voice(entityName):
 	if entityName in entityVoices:
 		return entityVoices[entityName]
 
+	# Fixed voices for certain entities
+	if entityName == "AVIATION ADVISOR":
+		chosen_voice = "en-US-GuyNeural"
+		entityVoices[entityName] = chosen_voice
+		return chosen_voice
+
 	# Find the first available voice that hasn't been assigned yet
 	used_voices = set(entityVoices.values())
 	available_voices = [voice for voice in VOICES if voice not in used_voices]
@@ -1054,6 +1072,11 @@ def sayWithRadioEffect(entityName, message, receivingRadio, blocking, filePrefix
 	if radioPanel:
 		COM1VolumeOutput = radioPanel.COM1VolumeOutput
 		COM2VolumeOutput = radioPanel.COM2VolumeOutput
+
+	# In case of random chatter, skip if user is communicating
+	if filePrefix == "chatter" and (communicationWithAIInProgress or atisPlaying):
+		print("Communication with AI ongoing, not playing chatter message")
+		return
 
 	if receivingRadio == "COM1":
 		if atcSoundCOM1 is not None:
@@ -1742,6 +1765,7 @@ def createRadioExchange():
 	
 	reachableFrequencies = getReachableFrequencies()
 	reachableFrequencies = [s for s in reachableFrequencies if s.get("description") != "ATIS"] # Remove ATIS frequencies
+	reachableFrequencies = [s for s in reachableFrequencies if s.get("description") != "AVIATION ADVISOR"] # Remove advisor frequency
 	randomStation = None
 	if len(reachableFrequencies) > 0:
 		randomStation = random.choice(reachableFrequencies)
