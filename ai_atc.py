@@ -152,6 +152,9 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - React to my transponder code appropriately.
 - Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz. 
 - An aviation advisor is available on 135.00 MHz frequency. They are not an ATC service, but can provide any kind of aviation information to the pilot.
+- If the pilot needs to do a readback of ATC instructions, call tool schedule_ATC_readback_check. Pass two parameters, entity name and the text of the readback check message. The readback check message should be something similar to '[Callsign], did you copy [instruction]?'.
+- Put READBACK_REQUIRED variable to true in the response if you have scheduled readback check, false otherwise.
+- Pilot readback is required for taxi clearance, takeoff clearance, landing clearance, altitude change instructions, Route/heading instructions, Speed restrictions, Squawk code, Frequency changes, Hold instructions, ILS/approach clearance, Go-around instruction, and any instructions that are critical for flight safety.  If there are any other instructions that you think are critical for flight safety, you can also ask for readback for those. You must call tool schedule_ATC_readback_check for all of those.
 - Always format your response as JSON."""
 #- Ignore minor frequency deviations, for example consider 131.675 same as 131.68 and do not mention it."""
 ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = ""
@@ -182,24 +185,25 @@ RADIO_REACH = {
 
 
 ATC_AI_TOOLS = [
+			
 			{
 				"type": "function",
 				"function": {
-					"name": "get_heading_to_approach_point",
-					"description": "Get flight heading and destination from user's current location to the location of the runway approach start waypoint.",
+					"name": "schedule_ATC_readback_check",
+					"description": "If a readback from pilot is required, to repeat ATC instructions, call this function to schedule the ATC asking the pilot if they received the instructions.",
 					"parameters": {
 						"type": "object",
 						"properties": {
-							"current_latitude": {
-								"type": "number",
-								"description": "User's current latitude",
+							"entity": {
+								"type": "text",
+								"description": "The entity who is sending this query",
 							},
-							"current_longitude": {
-								"type": "number",
-								"description": "User's current_longitude",
+							"atc_query": {
+								"type": "text",
+								"description": "ATC controller's question to pilot",
 							}
 						},
-						"required": []
+						"required": ["atc_query"]
 					},
 				}
 			},
@@ -231,6 +235,7 @@ chatterTimer = None
 transponderIdentButtonPressed = False
 trafficChatMessageCnt = 0
 onGroundTimer = None
+readbackCheckTimer = None
 
 recognizer_thread = None
 recognizer_controller = None
@@ -319,7 +324,7 @@ trafficChatSession: Optional[ChatSession] = None
 
 def handle_tool_calls(parsed_response):
 	"""
-	Handle tool/function calls from DeepSeek response
+	Handle tool/function calls from AI response
 	"""
 	if not parsed_response.choices:
 		return None
@@ -347,17 +352,18 @@ def handle_tool_calls(parsed_response):
 			'content': result
 		})
 
-	print("tool responses: ", tool_responses[0])
+	#print("tool responses: ", tool_responses[0])
 	global chatSession
 	chatSession.messages.append(tool_responses[0])
-	print("all messages: ", chatSession.messages)
+	#print("all messages: ", chatSession.messages)
 	return chatSession.get_response(OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT)
     
 
 def call_function(name, args):
 	"""Execute the requested function"""
 	function_map = {
-		'get_heading_to_approach_point': get_heading_to_approach_point
+		'get_heading_to_approach_point': get_heading_to_approach_point,
+		'schedule_ATC_readback_check': schedule_ATC_readback_check
 	}
 
 	if name in function_map:
@@ -369,6 +375,39 @@ def call_function(name, args):
 def get_heading_to_approach_point(current_latitude, current_longitude):
 	print("calculate_heading called")
 	return getHeadingToLocation(current_latitude, current_longitude, aeroflySettings.approach_start_latitude, aeroflySettings.approach_start_longitude)
+
+# AI tool
+def schedule_ATC_readback_check(entity, atc_query):
+	print(f"Scheduling ATC readback check with text: {atc_query}")
+
+	# Set a timer to check for pilot's readback in 30 seconds
+	global readbackCheckTimer
+	if readbackCheckTimer and readbackCheckTimer.is_alive():
+		readbackCheckTimer.cancel()  # Cancel any existing timer
+	
+	readbackCheckTimer = threading.Timer(40.0, check_pilot_readback, args=[entity, atc_query])
+	readbackCheckTimer.start()
+
+def check_pilot_readback(entity, atc_query):
+	# This function will be called after the timer expires to check if the pilot has acknowledged the ATC instructions
+	print("Reminding the pilot to readback ATC instructions...")
+	
+	atc_query_json = {
+		"ENTITY": entity,
+		"ATC_VOICE": atc_query
+		}
+	# convert to json string
+	atc_query_json = json.dumps(atc_query_json)
+	global chatSession
+	chatSession.add_assistant_message(atc_query_json)  # Add a message to the chat session to log the ATC query for readback
+	
+	global communicationWithAIInProgress
+	communicationWithAIInProgress = True
+	time.sleep(5) # Short delay to ensure the random radio chatter does not overlap with this important message
+	sayWithRadioEffect(entity.upper(), atc_query, "COM1", True, "atc_to_user") # For simplicity, not checking if COM1 or COM2 is tuned to the frequency, just playing the message with radio effect on COM1. This can be improved by keeping track of which frequency the ATC is communicating on and checking if the pilot is tuned to that frequency.
+	communicationWithAIInProgress = False
+	
+
 
 def getHeadingToLocation(currentLatitude, currentLongitude, destLatitude, destLongitude):
 	"""
@@ -615,7 +654,7 @@ def canMessageBeHeard(senderFrequency):
 		print("Sender frequency is unknown, playing the message anyway.")
 		return "COM1"
 	else:
-		print("cannot hear " + str(senderFrequency))
+		#print("cannot hear " + str(senderFrequency))
 		return ""
 
 def radioTunedToFrequency(senderFrequency):
@@ -636,7 +675,7 @@ def radioTunedToFrequency(senderFrequency):
 		print("Sender frequency is unknown, returning COM1 as tuned radio.")
 		return "COM1"
 	else:
-		print("Cannot hear " + str(senderFrequency))
+		#print("Cannot hear " + str(senderFrequency))
 		return ""
 
 
@@ -718,6 +757,10 @@ def sendMessageToAI(cleanedtext):
 	currentLocation = ""
 	currentAltitude = 0.0
 	currentGroundspeed = ""
+
+	global readbackCheckTimer
+	if readbackCheckTimer and readbackCheckTimer.is_alive():
+		readbackCheckTimer.cancel()  # Cancel any existing readback check timer
 	
 	if radioPanel:
 		currentHeading = "Heading " + str(int(radiant_to_heading(radioPanel.AircraftTrueHeading)))
@@ -800,7 +843,7 @@ def startATCSession():
 		radioPanel.start_polling(GAME_VARIABLES_POLLING_INTERVAL)
 
 	loadAeroflySettings() # reload Aerofly settings
-	chatSession = ChatSession(ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, None)
+	chatSession = ChatSession(ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, ATC_AI_TOOLS)
 	deleteRadioLogFiles()
 	entityVoices = {}
 	print("AI ATC SESSION START command")
@@ -820,7 +863,7 @@ def resetATCSession():
 	global entityVoices
 	loadAeroflySettings() # reload Aerofly settings
 	#chatSession.reset_session()
-	chatSession = ChatSession(ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, None)
+	chatSession = ChatSession(ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, ATC_AI_TOOLS)
 	deleteRadioLogFiles()
 	entityVoices = {}
 	print("AI ATC SESSION RESET command")
@@ -846,6 +889,10 @@ def trySendingMessage(message):
 	cleanedtext = cleanRecognizedSpeech(message)
 	print("\033[32m" + timestamp + " Recognized: " + cleanedtext + "\033[0m")
 			
+	global readbackCheckTimer
+	if readbackCheckTimer and readbackCheckTimer.is_alive():
+		readbackCheckTimer.cancel()  # Cancel any existing readback check timer
+	
 	global chatSession
 	global entityVoices
 				

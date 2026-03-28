@@ -197,7 +197,7 @@ class RadioPanel:
 					# Find the null terminator
 					null_pos = data.find(b'\x00')
 					if null_pos > 0:
-						json_str = data[:null_pos].decode('utf-8')
+						json_str = data[:null_pos].decode('utf-8', errors='ignore')
 						
 						# Parse JSON
 						game_data = json.loads(json_str)
