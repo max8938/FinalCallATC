@@ -45,6 +45,9 @@ ENABLE_RADIO_PANEL = True
 VR_CONTROLLER_INDEX = 1
 VR_CONTROLLER_BUTTON_ID = 1 
 
+# Shoud airport diagrams be created?
+CREATE_AIRPORT_DIAGRAMS=False
+
 # END OF SETTINGS
 
 import RadioPanel
@@ -65,6 +68,7 @@ import random
 import math
 from dotenv import load_dotenv
 import shutil
+from enum import Enum
 
 import tkinter as tk
 import tkinter.ttk as ttk
@@ -107,6 +111,12 @@ PHONETIC_ALPHABET = [
         "Victor", "Whiskey", "X-ray", "Yankee", "Zulu"
     ]
 
+class FlightPhase(Enum):
+	ON_GROUND	= 1
+	ENROUTE     = 2
+	DESCENDING  = 3
+	APPROACH    = 4
+	LANDING     = 5
 
 GAME_VARIABLES_POLLING_INTERVAL = 0.2 # Reading interval for state of radio panel controls, in seconds
 
@@ -152,7 +162,7 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - React to my transponder code appropriately.
 - Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz. 
 - An aviation advisor is available on 135.00 MHz frequency. They are not an ATC service, but can provide any kind of aviation information to the pilot.
-- If the pilot needs to do a readback of ATC instructions, call tool schedule_ATC_readback_check. Pass two parameters, entity name and the text of the readback check message. The readback check message should be something similar to '[Callsign], did you copy [instruction]?'.
+- If the pilot needs to do a readback of ATC instructions, call tool schedule_ATC_readback_check. Pass two parameters, entity name and the text of the readback check message. The readback check message should be something similar to '[Callsign], did you copy [instruction]?'. Do not put the readback check message in your response, only pass it as a parameter to the tool call. The ATC message to the pilot should be the instruction itself, without asking if the pilot copied it, for example 'Climb and maintain 5000 feet'. The readback check will be done separately by the tool, and will not be included in the ATC_VOICE variable.
 - Put READBACK_REQUIRED variable to true in the response if you have scheduled readback check, false otherwise.
 - Pilot readback is required for taxi clearance, takeoff clearance, landing clearance, altitude change instructions, Route/heading instructions, Speed restrictions, Squawk code, Frequency changes, Hold instructions, ILS/approach clearance, Go-around instruction, and any instructions that are critical for flight safety.  If there are any other instructions that you think are critical for flight safety, you can also ask for readback for those. You must call tool schedule_ATC_readback_check for all of those.
 - Always format your response as JSON."""
@@ -236,6 +246,9 @@ transponderIdentButtonPressed = False
 trafficChatMessageCnt = 0
 onGroundTimer = None
 readbackCheckTimer = None
+radioPlaybackQueue = []
+radioPlaybackThread = None
+currentFlightPhase = FlightPhase.ON_GROUND
 
 recognizer_thread = None
 recognizer_controller = None
@@ -385,7 +398,7 @@ def schedule_ATC_readback_check(entity, atc_query):
 	if readbackCheckTimer and readbackCheckTimer.is_alive():
 		readbackCheckTimer.cancel()  # Cancel any existing timer
 	
-	readbackCheckTimer = threading.Timer(40.0, check_pilot_readback, args=[entity, atc_query])
+	readbackCheckTimer = threading.Timer(50.0, check_pilot_readback, args=[entity, atc_query])
 	readbackCheckTimer.start()
 
 def check_pilot_readback(entity, atc_query):
@@ -401,11 +414,11 @@ def check_pilot_readback(entity, atc_query):
 	global chatSession
 	chatSession.add_assistant_message(atc_query_json)  # Add a message to the chat session to log the ATC query for readback
 	
-	global communicationWithAIInProgress
-	communicationWithAIInProgress = True
-	time.sleep(5) # Short delay to ensure the random radio chatter does not overlap with this important message
+	#global communicationWithAIInProgress
+	#communicationWithAIInProgress = True
+	#time.sleep(5) # Short delay to ensure the random radio chatter does not overlap with this important message
 	sayWithRadioEffect(entity.upper(), atc_query, "COM1", True, "atc_to_user") # For simplicity, not checking if COM1 or COM2 is tuned to the frequency, just playing the message with radio effect on COM1. This can be improved by keeping track of which frequency the ATC is communicating on and checking if the pilot is tuned to that frequency.
-	communicationWithAIInProgress = False
+	#communicationWithAIInProgress = False
 	
 
 
@@ -1111,39 +1124,65 @@ def sayWithRadioEffect(entityName, message, receivingRadio, blocking, filePrefix
 	
 	radioEffectRecordingFileName = file_path = os.path.join("Temp", filePrefix + "_radio_tts_" + str(soundID) + ".wav")
 	audio = addRadioEffectToRecording(cleanRecordingFileName, radioEffectRecordingFileName)
+
+	# Add audio to playback queue
+	global radioPlaybackQueue
+	radioPlaybackQueue.append((radioEffectRecordingFileName, receivingRadio, blocking, filePrefix))
+
+def playRadioMessageFromQueue():
 	
-	global atcSoundCOM1
-	global atcSoundCOM2
-	COM1VolumeOutput = 0.7
-	COM2VolumeOutput = 0.7
-	if radioPanel:
-		COM1VolumeOutput = radioPanel.COM1VolumeOutput
-		COM2VolumeOutput = radioPanel.COM2VolumeOutput
+	while True:
+		# Check for new messages in the queue every 0.5 sec
+		time.sleep(0.5)
+		
+		if len(radioPlaybackQueue) == 0:
+			continue
+		
+		# Read next item from queue
+		radioEffectRecordingFileName, receivingRadio, blocking, filePrefix = radioPlaybackQueue[0]
 
-	# In case of random chatter, skip if user is communicating
-	if filePrefix == "chatter" and (communicationWithAIInProgress or atisPlaying):
-		print("Communication with AI ongoing, not playing chatter message")
-		return
 
-	if receivingRadio == "COM1":
-		if atcSoundCOM1 is not None:
-			atcSoundCOM1.stop()
-		atcSoundCOM1 = pygame.mixer.Sound(radioEffectRecordingFileName)
-		atcSoundCOM1.set_volume(COM1VolumeOutput)
-		channel = atcSoundCOM1.play()
-	elif receivingRadio == "COM2":
-		if atcSoundCOM2 is not None:
-			atcSoundCOM2.stop()
-		atcSoundCOM2 = pygame.mixer.Sound(radioEffectRecordingFileName)
-		atcSoundCOM2.set_volume(COM2VolumeOutput)
-		channel = atcSoundCOM2.play()
-	else:
-		print("Unknown receiving radio, not playing atc sound: ", receivingRadio)
-		return
+		global atcSoundCOM1
+		global atcSoundCOM2
+		COM1VolumeOutput = 0.7
+		COM2VolumeOutput = 0.7
+		if radioPanel:
+			COM1VolumeOutput = radioPanel.COM1VolumeOutput
+			COM2VolumeOutput = radioPanel.COM2VolumeOutput
 
-	if blocking:
-		while channel.get_busy():
-			time.sleep(0.1) 
+		# In case of random chatter, skip if user is communicating
+		#if filePrefix == "chatter" and (communicationWithAIInProgress or atisPlaying):
+		
+		if communicationWithAIInProgress or atisPlaying:
+			print("Communication with AI ongoing, waiting with playing next message from queue.")
+			continue
+
+		if receivingRadio == "COM1":
+			if atcSoundCOM1 is not None:
+				atcSoundCOM1.stop()
+			atcSoundCOM1 = pygame.mixer.Sound(radioEffectRecordingFileName)
+			atcSoundCOM1.set_volume(COM1VolumeOutput)
+			channel = atcSoundCOM1.play()
+		elif receivingRadio == "COM2":
+			if atcSoundCOM2 is not None:
+				atcSoundCOM2.stop()
+			atcSoundCOM2 = pygame.mixer.Sound(radioEffectRecordingFileName)
+			atcSoundCOM2.set_volume(COM2VolumeOutput)
+			channel = atcSoundCOM2.play()
+		else:
+			print("Unknown receiving radio, not playing atc sound: ", receivingRadio)
+			return
+
+		if blocking:
+			while channel.get_busy():
+				time.sleep(0.5) 
+
+		# Remove the item from queue
+		radioPlaybackQueue.pop(0)
+
+		# Wait a bit before checking for the next message to avoid messages being played too close to each other
+		time.sleep(3.0)
+
 
 def addRadioEffectToRecording(fileName, newFileName):
 	# Load the clean TTS
@@ -1394,8 +1433,9 @@ def loadAeroflySettings():
 		generateATISRecording(aeroflySettings.destination_name, destinationAirportName, None, aeroflySettings.destination_runway, aeroflySettings.wind_strength, aeroflySettings.wind_direction_in_degree, aeroflySettings.visibility)
 
 		# Generate airport diagrams
-		thread = threading.Thread(target=generateAirportDiagrams, daemon=True)
-		thread.start()
+		if CREATE_AIRPORT_DIAGRAMS:
+			thread = threading.Thread(target=generateAirportDiagrams, daemon=True)
+			thread.start()
 		
 
 	except FileNotFoundError:
@@ -1801,15 +1841,17 @@ def createRadioExchange():
 		chatterTimer.start() 
 		return
 	
-	clearTempFolder("chatter")
 	
+	
+	"""
 	# Only if no user communication with AI ongoing or ATIS playback
 	if communicationWithAIInProgress or atisPlaying:
 		print("Communication with AI ongoing, not creating radio exchange")
 		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
 		chatterTimer.start() 
 		return
-	
+	"""
+
 	reachableFrequencies = getReachableFrequencies()
 	reachableFrequencies = [s for s in reachableFrequencies if s.get("description") != "ATIS"] # Remove ATIS frequencies
 	reachableFrequencies = [s for s in reachableFrequencies if s.get("description") != "AVIATION ADVISOR"] # Remove advisor frequency
@@ -1865,24 +1907,29 @@ def createRadioExchange():
 	response = trafficChatSession.get_response(OPENROUTER_PROVIDER_SORT_PRICE) # We do not care how responsive AI is for chatter generation, so cheaper is better
 	trafficChatMessageCnt += 1
 
+	"""
 	# Check again if user is communicating
 	if communicationWithAIInProgress or atisPlaying:
 		print("Communication with AI ongoing, discarding radio exchange")
 		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
 		chatterTimer.start() 
 		return
+	"""
 
 	aiTrafficGenerationResponse = AITrafficGenerationResponse(response)
 
 	if aiTrafficGenerationResponse and aiTrafficGenerationResponse.message1Entity and aiTrafficGenerationResponse.message1Text and aiTrafficGenerationResponse.message2Entity and aiTrafficGenerationResponse.message2Text:
 		print("Generated chatter: ", aiTrafficGenerationResponse.message1Entity.upper(), ": ", aiTrafficGenerationResponse.message1Text , " / ", aiTrafficGenerationResponse.message2Entity.upper(), ": ", aiTrafficGenerationResponse.message2Text)
 		
-		# Speak the first message
+		# Add the first message to speech queue
 		sayWithRadioEffect(aiTrafficGenerationResponse.message1Entity.upper(), aiTrafficGenerationResponse.message1Text, randomStation["receivingRadio"], True, "chatter")
 
+		"""
 		# Speak the second message after a delay. 
 		time.sleep(3)
+		"""
 
+		"""
 		# Check again if user is communicating
 		if communicationWithAIInProgress or atisPlaying:
 			print("Communication with AI ongoing, discarding second message of radio exchange")
@@ -1901,7 +1948,9 @@ def createRadioExchange():
 			chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
 			chatterTimer.start() 
 			return
+		"""
 
+		# Add the second message to speech queue
 		sayWithRadioEffect(aiTrafficGenerationResponse.message2Entity.upper(), aiTrafficGenerationResponse.message2Text, randomStation["receivingRadio"], True, "chatter")
 	
 	chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
@@ -1971,7 +2020,8 @@ def on_test_transmit_release(event):
 
 	recognizer.stop_continuous_recognition()
 
-
+def flight_phase_tick():
+	global currentFlightPhase
 
 entry = None
 def createAppWindow():
@@ -2038,7 +2088,7 @@ def main():
 		print("Mac platform detected, some features may not work (radio panel, volume controls).")
 
 	clearTempFolder()
-
+	#clearTempFolder("chatter")
 	
 
 	# Load environment variables with API keys
@@ -2089,6 +2139,11 @@ def main():
 	global recognizer_thread
 	recognizer_thread = threading.Thread(target=runSpeechRecognizer, daemon=True)
 	recognizer_thread.start()
+
+	# Start radio playback thread
+	global radioPlaybackThread
+	radioPlaybackThread = threading.Thread(target=playRadioMessageFromQueue, daemon=True)
+	radioPlaybackThread.start()
 	
 	'''
 	# Test available voices
