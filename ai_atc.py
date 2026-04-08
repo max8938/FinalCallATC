@@ -5,7 +5,7 @@
 # NOT ACTIVE AT THE MOMENT How often should telemetry be sent to AI (besides sending with user messages), in seconds
 TELEMETRY_SEND_INTERVAL=60.0 
 
-RADIO_CHATTER_TIMER = 20.0 # How often will system attempt to create radio chatter between other stations, in seconds
+RADIO_CHATTER_TIMER = 40.0 # How often will system attempt to create radio chatter between other stations, in seconds
 RADIO_CHATTER_PROBABILITY = 70.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
 # For smaller airports (less frequencies), the chatter will be generated a bit less often. Chatter on GUARD (121.5) is rare, and frequent on CENTER (134.0).
 
@@ -113,7 +113,7 @@ PHONETIC_ALPHABET = [
 
 class FlightPhase(Enum):
 	ON_GROUND	= 1
-	ENROUTE     = 2
+	IN_FLIGHT   = 2
 	DESCENDING  = 3
 	APPROACH    = 4
 	LANDING     = 5
@@ -249,6 +249,8 @@ readbackCheckTimer = None
 radioPlaybackQueue = []
 radioPlaybackThread = None
 currentFlightPhase = FlightPhase.ON_GROUND
+flightPhaseTimer = None
+tower_handoff_done = False
 
 recognizer_thread = None
 recognizer_controller = None
@@ -862,7 +864,8 @@ def startATCSession():
 	print("AI ATC SESSION START command")
 	say("ATC session started")
 	writeRadioLogToFile()
-	
+	currentFlightPhase = FlightPhase.ON_GROUND
+	tower_handoff_done = False
 	
 	atcSessionStarted = True
 	global chatterTimer
@@ -870,6 +873,12 @@ def startATCSession():
 		chatterTimer.cancel()
 	chatterTimer = threading.Timer(10, createRadioExchange)
 	chatterTimer.start() # Generate radio chatter
+
+	global flightPhaseTimer
+	if flightPhaseTimer:
+		flightPhaseTimer.cancel()
+	flightPhaseTimer = threading.Timer(3.0, flight_phase_tick)
+	flightPhaseTimer.start()
 
 def resetATCSession():
 	global chatSession
@@ -882,17 +891,31 @@ def resetATCSession():
 	print("AI ATC SESSION RESET command")
 	say("ATC session reset")
 	writeRadioLogToFile()
+	currentFlightPhase = FlightPhase.ON_GROUND
+	tower_handoff_done = False
+
 	global chatterTimer
 	if chatterTimer:
 		chatterTimer.cancel()
 	chatterTimer = threading.Timer(10, createRadioExchange)
 	chatterTimer.start() # Generate radio chatter
 
+	global flightPhaseTimer
+	global flightPhaseTimer
+	if flightPhaseTimer:
+		flightPhaseTimer.cancel()
+	flightPhaseTimer = threading.Timer(3.0, flight_phase_tick)
+	flightPhaseTimer.start()
+
 def stopATCSession():
 	say("ATC session stopped.")
 	global chatterTimer
 	if chatterTimer:
 		chatterTimer.cancel()
+
+	global flightPhaseTimer
+	if flightPhaseTimer:
+		flightPhaseTimer.cancel()
 	
 def recognized_handler(evt):
 	trySendingMessage(evt.result.text)		
@@ -1132,8 +1155,8 @@ def sayWithRadioEffect(entityName, message, receivingRadio, blocking, filePrefix
 def playRadioMessageFromQueue():
 	
 	while True:
-		# Check for new messages in the queue every 0.5 sec
-		time.sleep(0.5)
+		# Check for new messages in the queue every 1 sec
+		time.sleep(1)
 		
 		if len(radioPlaybackQueue) == 0:
 			continue
@@ -1153,8 +1176,8 @@ def playRadioMessageFromQueue():
 		# In case of random chatter, skip if user is communicating
 		#if filePrefix == "chatter" and (communicationWithAIInProgress or atisPlaying):
 		
-		if communicationWithAIInProgress or atisPlaying:
-			print("Communication with AI ongoing, waiting with playing next message from queue.")
+		if communicationWithAIInProgress or atisPlaying or radioButtonHeld:
+			print("Communication with AI ongoing or radio button held, on hold for playing the next message from queue.")
 			continue
 
 		if receivingRadio == "COM1":
@@ -1265,7 +1288,7 @@ def controllerInputListen():
 					recognizer.start_continuous_recognition()
 					 
 
-			time.sleep(0.1)
+			time.sleep(0.2)
 
 	finally:
 		openvr.shutdown()
@@ -1924,6 +1947,9 @@ def createRadioExchange():
 		# Add the first message to speech queue
 		sayWithRadioEffect(aiTrafficGenerationResponse.message1Entity.upper(), aiTrafficGenerationResponse.message1Text, randomStation["receivingRadio"], True, "chatter")
 
+		# Pause before adding the second message, to allow messages to the pilot to be added to the queue in between
+		time.sleep(3)
+
 		"""
 		# Speak the second message after a delay. 
 		time.sleep(3)
@@ -2022,6 +2048,57 @@ def on_test_transmit_release(event):
 
 def flight_phase_tick():
 	global currentFlightPhase
+
+	print("Height: ", radioPanel.AircraftHeight)
+
+	if currentFlightPhase == FlightPhase.ON_GROUND and radioPanel and radioPanel.AircraftGroundSpeed > 40 and radioPanel.AircraftHeight > 50:
+			# we probably took off, so switch to in flight phase
+			currentFlightPhase = FlightPhase.IN_FLIGHT
+			print("Flight phase changed to IN_FLIGHT")
+
+			# Initiate tower frequency handoff right after takeoff
+			message = "Automatic message: plane has taken off, send frequency handover instructions."
+			sendMessageToAI(message)
+
+	elif currentFlightPhase != FlightPhase.ON_GROUND and radioPanel and radioPanel.AircraftGroundSpeed < 30 and radioPanel.AircraftHeight < 10:
+			# we probably landed, so switch to on ground phase
+			currentFlightPhase = FlightPhase.ON_GROUND
+			print("Flight phase changed to ON_GROUND")
+
+			message = "Automatic message: plane has landed, send instructions for leaving the runway."
+			sendMessageToAI(message)
+
+	elif currentFlightPhase == FlightPhase.IN_FLIGHT:
+		check_tower_handoff()
+
+	global flightPhaseTimer
+	if flightPhaseTimer:
+		flightPhaseTimer.cancel()
+	flightPhaseTimer = threading.Timer(3.0, flight_phase_tick)
+	flightPhaseTimer.start()
+
+def check_tower_handoff():
+	# Check whether we are close enough to the destination airport and low enough to initiate tower handoff, if we are not already in tower handoff. We do this by calculating the distance from our current position to the destination runway, and checking our altitude. If we are close enough and low enough, we send a message to the AI to initiate tower handoff.
+	
+	global tower_handoff_done
+	if tower_handoff_done:
+		return
+
+	currentLatitude = round(math.degrees(radioPanel.AircraftLatitude), 5) 
+	currentLongitude = round(math.degrees(radioPanel.AircraftLongitude), 5) 
+	distanceToDestination = getDistanceToLocation(currentLatitude, currentLongitude, aeroflySettings.destination_runway_latitude, aeroflySettings.destination_runway_longitude)
+    
+	# Core conditions
+	close_enough  = distanceToDestination < 8
+	low_enough    = radioPanel.AircraftHeight < 1000 # in meters
+		
+
+	if close_enough and low_enough:
+		print("Plane is close_enough and low_enough for tower handoff, sending message to AI")
+		tower_handoff_done = True
+		message = "Automatic message: plane is close to landing, send frequency handover instructions to tower frequency. If this is sent on the tower frequency, or if there is no tower on the destination airport, send blank response in ATC_VOICE."
+		sendMessageToAI(message)
+
 
 entry = None
 def createAppWindow():
@@ -2144,6 +2221,8 @@ def main():
 	global radioPlaybackThread
 	radioPlaybackThread = threading.Thread(target=playRadioMessageFromQueue, daemon=True)
 	radioPlaybackThread.start()
+
+	
 	
 	'''
 	# Test available voices

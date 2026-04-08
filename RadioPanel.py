@@ -46,6 +46,7 @@ class RadioPanel:
 	AircraftTrueHeading: float = 0.0
 	AircraftGroundSpeed: float = 0.0
 	AircraftAltitude: float = 0.0
+	AircraftHeight: float = 0.0
 	
 	# Mapping of variable names to shared memory keys/AF4 messages
 	VARIABLE_MAP = {
@@ -68,6 +69,7 @@ class RadioPanel:
 			"AircraftGroundSpeed": "Aircraft.GroundSpeed",
 			"AircraftAltitude": "Aircraft.Altitude",
 			"AircraftName": "Aircraft.Name",
+			"AircraftHeight": "Aircraft.Height",
 		}
 
 	
@@ -219,8 +221,8 @@ class RadioPanel:
 
 								setattr(self, name, new_val)
 
-								# Do not send callback for heading, speed, location and altitude changes
-								if name in ["AircraftTrueHeading", "AircraftLongitude", "AircraftLatitude", "AircraftAltitude", "AircraftGroundSpeed"]:
+								# Do not send callback for heading, speed, location and altitude changes, etc.
+								if name in ["AircraftTrueHeading", "AircraftLongitude", "AircraftLatitude", "AircraftAltitude", "AircraftGroundSpeed", "AircraftHeight"]:
 									continue
 
 								for cb in self._callbacks:
