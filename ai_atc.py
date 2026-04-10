@@ -162,7 +162,7 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - React to my transponder code appropriately.
 - Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz. 
 - An aviation advisor is available on 135.00 MHz frequency. They are not an ATC service, but can provide any kind of aviation information to the pilot.
-- If the pilot needs to do a readback of ATC instructions, call tool schedule_ATC_readback_check. Pass two parameters, entity name and the text of the readback check message. The readback check message should be something similar to '[Callsign], did you copy [instruction]?'. Do not put the readback check message in your response, only pass it as a parameter to the tool call. The ATC message to the pilot should be the instruction itself, without asking if the pilot copied it, for example 'Climb and maintain 5000 feet'. The readback check will be done separately by the tool, and will not be included in the ATC_VOICE variable.
+- If the pilot needs to do a readback of ATC instructions, call tool schedule_ATC_readback_check. Pass two parameters, entity name and the text of the readback check message. The readback check message should be something similar to '[Callsign], did you copy [instruction]?'. Put the readback check message in your response in CHECK_ATC_VOICE field and the entity in CHECK_ENTITY field. The ATC message to the pilot should be the instruction itself, without asking if the pilot copied it, for example 'Climb and maintain 5000 feet'. The readback check will be done separately by the tool, and will not be included in the ATC_VOICE variable.
 - Put READBACK_REQUIRED variable to true in the response if you have scheduled readback check, false otherwise.
 - Pilot readback is required for taxi clearance, takeoff clearance, landing clearance, altitude change instructions, Route/heading instructions, Speed restrictions, Squawk code, Frequency changes, Hold instructions, ILS/approach clearance, Go-around instruction, and any instructions that are critical for flight safety.  If there are any other instructions that you think are critical for flight safety, you can also ask for readback for those. You must call tool schedule_ATC_readback_check for all of those.
 - Always format your response as JSON."""
@@ -251,6 +251,7 @@ radioPlaybackThread = None
 currentFlightPhase = FlightPhase.ON_GROUND
 flightPhaseTimer = None
 tower_handoff_done = False
+approach_handoff_done = False
 
 recognizer_thread = None
 recognizer_controller = None
@@ -388,12 +389,12 @@ def call_function(name, args):
 
 # AI tool
 def get_heading_to_approach_point(current_latitude, current_longitude):
-	print("calculate_heading called")
+	print("TOOL CALL: calculate_heading called")
 	return getHeadingToLocation(current_latitude, current_longitude, aeroflySettings.approach_start_latitude, aeroflySettings.approach_start_longitude)
 
 # AI tool
 def schedule_ATC_readback_check(entity, atc_query):
-	print(f"Scheduling ATC readback check with text: {atc_query}")
+	print(f"TOOL CALL: Scheduling ATC readback check with text: {atc_query}")
 
 	# Set a timer to check for pilot's readback in 30 seconds
 	global readbackCheckTimer
@@ -916,6 +917,9 @@ def stopATCSession():
 	global flightPhaseTimer
 	if flightPhaseTimer:
 		flightPhaseTimer.cancel()
+
+	if radioPanel:
+		radioPanel.AUXAudioSelectButton = -1.0 # To prevent mic getting activated on the next session start
 	
 def recognized_handler(evt):
 	trySendingMessage(evt.result.text)		
@@ -1127,7 +1131,7 @@ def say_response_distorted(response, receivingRadio):
 def sayWithRadioEffect(entityName, message, receivingRadio, blocking, filePrefix):
 	# set voice for entity
 	voice = get_entity_voice(entityName)
-	print("Assigned voice " + voice + " to entity " + entityName)
+	#print("Assigned voice " + voice + " to entity " + entityName)
 	speech_config.speech_synthesis_voice_name = voice
 	
 	soundID = random.randint(10000, 99999)
@@ -1141,7 +1145,7 @@ def sayWithRadioEffect(entityName, message, receivingRadio, blocking, filePrefix
 		if (result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted):
 			print(result)
 			print("speech result.reason: ", result.reason, " cancellation_details: ", result.cancellation_details)
-	except e:
+	except Exception as e:
 		print("exception: ", e)
 	
 	
@@ -1572,6 +1576,8 @@ def onGameVariableChange(name, old, new):
 		handleIdentButtonPress()
 		return
 	
+	# Not needed anymore as flight state machine will do this
+	"""
 	if name == "AircraftOnGround":
 		global onGroundTimer
 		if old == 0.0 and new == 1.0:
@@ -1586,6 +1592,7 @@ def onGameVariableChange(name, old, new):
 				onGroundTimer.cancel()
 			
 		return
+	"""
 
 	# TODO react on transponder code change
 
@@ -2049,7 +2056,7 @@ def on_test_transmit_release(event):
 def flight_phase_tick():
 	global currentFlightPhase
 
-	print("Height: ", radioPanel.AircraftHeight)
+	#print("Height: ", radioPanel.AircraftHeight)
 
 	if currentFlightPhase == FlightPhase.ON_GROUND and radioPanel and radioPanel.AircraftGroundSpeed > 40 and radioPanel.AircraftHeight > 50:
 			# we probably took off, so switch to in flight phase
@@ -2070,6 +2077,7 @@ def flight_phase_tick():
 
 	elif currentFlightPhase == FlightPhase.IN_FLIGHT:
 		check_tower_handoff()
+		check_destination_approach_handoff()
 
 	global flightPhaseTimer
 	if flightPhaseTimer:
@@ -2097,6 +2105,27 @@ def check_tower_handoff():
 		print("Plane is close_enough and low_enough for tower handoff, sending message to AI")
 		tower_handoff_done = True
 		message = "Automatic message: plane is close to landing, send frequency handover instructions to tower frequency. If this is sent on the tower frequency, or if there is no tower on the destination airport, send blank response in ATC_VOICE."
+		sendMessageToAI(message)
+
+
+def check_destination_approach_handoff():
+	# Similar to tower handoff, but for approach frequency handoff. We check if we are close enough to the approach start waypoint, and if we are low enough, to initiate approach handoff.
+
+	global approach_handoff_done
+	if approach_handoff_done or tower_handoff_done:
+		return
+
+	currentLatitude = round(math.degrees(radioPanel.AircraftLatitude), 5)
+	currentLongitude = round(math.degrees(radioPanel.AircraftLongitude), 5)
+	distanceToApproachStartWaypoint = getDistanceToLocation(currentLatitude, currentLongitude, aeroflySettings.approach_start_latitude, aeroflySettings.approach_start_longitude)
+
+	# Core conditions
+	close_enough  = distanceToApproachStartWaypoint < 15
+
+	if close_enough:
+		print("Plane is close_enough for destination approach handoff, sending message to AI")
+		approach_handoff_done = True
+		message = "Automatic message: plane is close to destination, send frequency handover instructions to destination approach frequency. If there is no approach ATC at destination, handoff to destination tower frequency. If unable, handoff to any appropriate service at destination. If unable, send blank response in ATC_VOICE."
 		sendMessageToAI(message)
 
 
