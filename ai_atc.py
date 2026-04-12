@@ -161,7 +161,7 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - AFIS service does not issue clearances, only advisories. Pilots tell say their intentions on that frequency and not ask for clearances.
 - React to my transponder code appropriately.
 - Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz. 
-- An aviation advisor is available on 135.00 MHz frequency. They are not an ATC service, but can provide any kind of aviation information to the pilot.
+- A friend of the pilot is available on 135.00 MHz frequency. They are not an ATC service, but can provide any kind of information to the pilot in an informal conversation.
 - If the pilot needs to do a readback of ATC instructions, call tool schedule_ATC_readback_check. Pass two parameters, entity name and the text of the readback check message. The readback check message should be something similar to '[Callsign], did you copy [instruction]?'. Put the readback check message in your response in CHECK_ATC_VOICE field and the entity in CHECK_ENTITY field. The ATC message to the pilot should be the instruction itself, without asking if the pilot copied it, for example 'Climb and maintain 5000 feet'. The readback check will be done separately by the tool, and will not be included in the ATC_VOICE variable.
 - Put READBACK_REQUIRED variable to true in the response if you have scheduled readback check, false otherwise.
 - Pilot readback is required for taxi clearance, takeoff clearance, landing clearance, altitude change instructions, Route/heading instructions, Speed restrictions, Squawk code, Frequency changes, Hold instructions, ILS/approach clearance, Go-around instruction, and any instructions that are critical for flight safety.  If there are any other instructions that you think are critical for flight safety, you can also ask for readback for those. You must call tool schedule_ATC_readback_check for all of those.
@@ -249,9 +249,11 @@ readbackCheckTimer = None
 radioPlaybackQueue = []
 radioPlaybackThread = None
 currentFlightPhase = FlightPhase.ON_GROUND
-flightPhaseTimer = None
+flightPhaseThread = None
 tower_handoff_done = False
 approach_handoff_done = False
+center_handoff_done = False
+atcSessionActive = False
 
 recognizer_thread = None
 recognizer_controller = None
@@ -320,7 +322,7 @@ class ChatSession:
 		)
 		end = time.time()
 		provider = response.model_extra.get("provider") or "unknown"
-		print(f"AI response time: {end - start:.2f} seconds, provider: {provider}")
+		#print(f"AI response time: {end - start:.2f} seconds, provider: {provider}")
 		#print(response)
 		global parsedAIResponse
 		finish_reason = response.choices[0].finish_reason
@@ -850,6 +852,9 @@ def startATCSession():
 	global radioPanel
 	global entityVoices
 	global atcSessionStarted
+	global atcSessionActive
+	atcSessionActive = True
+	currentFlightPhase = FlightPhase.ON_GROUND
 
 	radioPanel = None
 	radioPanel = RadioPanel.RadioPanel(ENABLE_RADIO_PANEL) # start reading radio panel
@@ -875,15 +880,19 @@ def startATCSession():
 	chatterTimer = threading.Timer(10, createRadioExchange)
 	chatterTimer.start() # Generate radio chatter
 
-	global flightPhaseTimer
-	if flightPhaseTimer:
-		flightPhaseTimer.cancel()
-	flightPhaseTimer = threading.Timer(3.0, flight_phase_tick)
-	flightPhaseTimer.start()
+	# Start flight phase thread
+	global flightPhaseThread
+	flightPhaseThread = threading.Thread(target=flight_phase_tick, daemon=True)
+	flightPhaseThread.start()
+	
 
 def resetATCSession():
 	global chatSession
 	global entityVoices
+	global atcSessionActive
+	atcSessionActive = True
+	currentFlightPhase = FlightPhase.ON_GROUND
+
 	loadAeroflySettings() # reload Aerofly settings
 	#chatSession.reset_session()
 	chatSession = ChatSession(ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, ATC_AI_TOOLS)
@@ -901,22 +910,16 @@ def resetATCSession():
 	chatterTimer = threading.Timer(10, createRadioExchange)
 	chatterTimer.start() # Generate radio chatter
 
-	global flightPhaseTimer
-	global flightPhaseTimer
-	if flightPhaseTimer:
-		flightPhaseTimer.cancel()
-	flightPhaseTimer = threading.Timer(3.0, flight_phase_tick)
-	flightPhaseTimer.start()
+	
 
 def stopATCSession():
+	global atcSessionActive
+	atcSessionActive = False
+	
 	say("ATC session stopped.")
 	global chatterTimer
 	if chatterTimer:
 		chatterTimer.cancel()
-
-	global flightPhaseTimer
-	if flightPhaseTimer:
-		flightPhaseTimer.cancel()
 
 	if radioPanel:
 		radioPanel.AUXAudioSelectButton = -1.0 # To prevent mic getting activated on the next session start
@@ -1896,7 +1899,7 @@ def createRadioExchange():
 
 	# Decide with random chance whether to generate an exchange or not
 	# Take airport size into account, bigger airports = more likely
-	print("random station: ", randomStation)
+	# print("random station: ", randomStation)
 	airportSizeModifier = float(randomStation["airportSizeModifier"])
 	randomNum = float(random.randint(0, 100))
 	if RADIO_CHATTER_PROBABILITY * airportSizeModifier <= randomNum:
@@ -2054,38 +2057,41 @@ def on_test_transmit_release(event):
 	recognizer.stop_continuous_recognition()
 
 def flight_phase_tick():
-	global currentFlightPhase
+	while atcSessionActive:
+		global currentFlightPhase
 
-	#print("Height: ", radioPanel.AircraftHeight)
+		#print("Height: ", radioPanel.AircraftHeight)
 
-	if currentFlightPhase == FlightPhase.ON_GROUND and radioPanel and radioPanel.AircraftGroundSpeed > 40 and radioPanel.AircraftHeight > 50:
-			# we probably took off, so switch to in flight phase
-			currentFlightPhase = FlightPhase.IN_FLIGHT
-			print("Flight phase changed to IN_FLIGHT")
+		if currentFlightPhase == FlightPhase.ON_GROUND and radioPanel and radioPanel.AircraftGroundSpeed > 40 and radioPanel.AircraftHeight > 50:
+				# we probably took off, so switch to in flight phase
+				currentFlightPhase = FlightPhase.IN_FLIGHT
+				print("Flight phase changed to IN_FLIGHT")
 
-			# Initiate tower frequency handoff right after takeoff
-			message = "Automatic message: plane has taken off, send frequency handover instructions."
-			sendMessageToAI(message)
+				# Initiate tower frequency handoff right after takeoff
+				message = "Automatic message: plane has taken off, send frequency handover instructions."
+				sendMessageToAI(message)
 
-	elif currentFlightPhase != FlightPhase.ON_GROUND and radioPanel and radioPanel.AircraftGroundSpeed < 30 and radioPanel.AircraftHeight < 10:
-			# we probably landed, so switch to on ground phase
-			currentFlightPhase = FlightPhase.ON_GROUND
-			print("Flight phase changed to ON_GROUND")
+		elif currentFlightPhase != FlightPhase.ON_GROUND and radioPanel and radioPanel.AircraftGroundSpeed < 30 and radioPanel.AircraftHeight < 10:
+				# we probably landed, so switch to on ground phase
+				currentFlightPhase = FlightPhase.ON_GROUND
+				print("Flight phase changed to ON_GROUND")
 
-			message = "Automatic message: plane has landed, send instructions for leaving the runway."
-			sendMessageToAI(message)
+				message = "Automatic message: plane has landed, send instructions for leaving the runway."
+				sendMessageToAI(message)
 
-	elif currentFlightPhase == FlightPhase.IN_FLIGHT:
-		check_tower_handoff()
-		check_destination_approach_handoff()
+		elif currentFlightPhase == FlightPhase.IN_FLIGHT:
+			distanceFromOriginToDestination = getDistanceToLocation(aeroflySettings.origin_airport_latitude, aeroflySettings.origin_runway_longitude, aeroflySettings.destination_runway_latitude, aeroflySettings.destination_runway_longitude)
+		
+			if distanceFromOriginToDestination > 40: # Only do handoff checks if we are on a longer flight
+				check_destination_tower_handoff()
+				check_destination_approach_handoff()
+				check_center_handoff()
 
-	global flightPhaseTimer
-	if flightPhaseTimer:
-		flightPhaseTimer.cancel()
-	flightPhaseTimer = threading.Timer(3.0, flight_phase_tick)
-	flightPhaseTimer.start()
+		time.sleep(3) # Check every 5 seconds
 
-def check_tower_handoff():
+	
+
+def check_destination_tower_handoff():
 	# Check whether we are close enough to the destination airport and low enough to initiate tower handoff, if we are not already in tower handoff. We do this by calculating the distance from our current position to the destination runway, and checking our altitude. If we are close enough and low enough, we send a message to the AI to initiate tower handoff.
 	
 	global tower_handoff_done
@@ -2126,6 +2132,26 @@ def check_destination_approach_handoff():
 		print("Plane is close_enough for destination approach handoff, sending message to AI")
 		approach_handoff_done = True
 		message = "Automatic message: plane is close to destination, send frequency handover instructions to destination approach frequency. If there is no approach ATC at destination, handoff to destination tower frequency. If unable, handoff to any appropriate service at destination. If unable, send blank response in ATC_VOICE."
+		sendMessageToAI(message)
+
+def check_center_handoff():
+	# When we get far enough from the departure airport, we can initiate center handoff. We check the distance from our current position to the departure airport, and if we are far enough, we send a message to the AI to initiate center handoff.
+
+	global center_handoff_done
+	if center_handoff_done or approach_handoff_done:
+		return
+
+	currentLatitude = round(math.degrees(radioPanel.AircraftLatitude), 5)
+	currentLongitude = round(math.degrees(radioPanel.AircraftLongitude), 5)
+	distanceFromDeparture = getDistanceToLocation(currentLatitude, currentLongitude, aeroflySettings.departure_runway_latitude, aeroflySettings.departure_runway_longitude)
+
+	# Core conditions
+	far_enough  = distanceFromDeparture > 15
+
+	if far_enough:
+		print("Plane is far_enough from departure airport for center handoff, sending message to AI")
+		center_handoff_done = True
+		message = "Automatic message: plane is far from departure airport, send frequency handover instructions to center frequency. If the handover to center frequency has already been instructed, send blank response in ATC_VOICE."
 		sendMessageToAI(message)
 
 
