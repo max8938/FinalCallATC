@@ -2080,7 +2080,7 @@ def flight_phase_tick():
 				sendMessageToAI(message)
 
 		elif currentFlightPhase == FlightPhase.IN_FLIGHT:
-			distanceFromOriginToDestination = getDistanceToLocation(aeroflySettings.origin_airport_latitude, aeroflySettings.origin_runway_longitude, aeroflySettings.destination_runway_latitude, aeroflySettings.destination_runway_longitude)
+			distanceFromOriginToDestination = getDistanceToLocation(aeroflySettings.origin_airport_latitude, aeroflySettings.origin_airport_longitude, aeroflySettings.destination_runway_latitude, aeroflySettings.destination_runway_longitude)
 		
 			if distanceFromOriginToDestination > 40: # Only do handoff checks if we are on a longer flight
 				check_destination_tower_handoff()
@@ -2143,7 +2143,7 @@ def check_center_handoff():
 
 	currentLatitude = round(math.degrees(radioPanel.AircraftLatitude), 5)
 	currentLongitude = round(math.degrees(radioPanel.AircraftLongitude), 5)
-	distanceFromDeparture = getDistanceToLocation(currentLatitude, currentLongitude, aeroflySettings.departure_runway_latitude, aeroflySettings.departure_runway_longitude)
+	distanceFromDeparture = getDistanceToLocation(currentLatitude, currentLongitude, aeroflySettings.origin_airport_latitude, aeroflySettings.origin_airport_longitude)
 
 	# Core conditions
 	far_enough  = distanceFromDeparture > 15
@@ -2153,6 +2153,7 @@ def check_center_handoff():
 		center_handoff_done = True
 		message = "Automatic message: plane is far from departure airport, send frequency handover instructions to center frequency. If the handover to center frequency has already been instructed, send blank response in ATC_VOICE."
 		sendMessageToAI(message)
+
 
 
 entry = None
