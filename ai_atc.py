@@ -161,11 +161,13 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - AFIS service does not issue clearances, only advisories. Pilots tell say their intentions on that frequency and not ask for clearances.
 - React to my transponder code appropriately.
 - Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz. 
-- A friend of the pilot is available on 135.00 MHz frequency. They are not an ATC service, but can provide any kind of information to the pilot in an informal conversation.
-- If the pilot needs to do a readback of ATC instructions, call tool schedule_ATC_readback_check. Pass two parameters, entity name and the text of the readback check message. The readback check message should be something similar to '[Callsign], did you copy [instruction]?'. Put the readback check message in your response in CHECK_ATC_VOICE field and the entity in CHECK_ENTITY field. The ATC message to the pilot should be the instruction itself, without asking if the pilot copied it, for example 'Climb and maintain 5000 feet'. The readback check will be done separately by the tool, and will not be included in the ATC_VOICE variable.
+- When handing over to another frequency, use only the provided frequencies in the flight plan, do not make up any frequencies. If you need to handoff to a frequency that is not in the flight plan, handoff to the closest ATC service in the flight plan. For example, if the airport has tower but not ground ATC, tower will handle ground clearances as well.
+- An advisor of the pilot is available on 135.00 MHz frequency. They are not an ATC service, but can provide any kind of information to the pilot in an informal conversation.Their entity name is "ADVISOR".
+- If the pilot needs to do a readback of ATC instructions, call tool schedule_ATC_readback_check. Pass two parameters, entity name and the text of the readback check message. The readback check message should be something similar to '[Callsign], did you copy [instruction]?'. The ATC message to the pilot should be the instruction itself, without asking if the pilot copied it, for example 'Climb and maintain 5000 feet'. The readback check will be done separately by the tool, and will not be included in the ATC_VOICE variable. Do NOT include the readback text anywhere in the JSON output.
 - Put READBACK_REQUIRED variable to true in the response if you have scheduled readback check, false otherwise.
 - Pilot readback is required for taxi clearance, takeoff clearance, landing clearance, altitude change instructions, Route/heading instructions, Speed restrictions, Squawk code, Frequency changes, Hold instructions, ILS/approach clearance, Go-around instruction, and any instructions that are critical for flight safety.  If there are any other instructions that you think are critical for flight safety, you can also ask for readback for those. You must call tool schedule_ATC_readback_check for all of those.
-- Always format your response as JSON."""
+- Always format your response as JSON. Do not return readback checks in JSON output.
+- Return exactly ONE JSON object per response. Never output multiple JSON objects. Never append anything before or after the JSON."""
 #- Ignore minor frequency deviations, for example consider 131.675 same as 131.68 and do not mention it."""
 ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = ""
 
@@ -516,12 +518,10 @@ def bearingToDirection(heading_deg: float) -> str:
 
 def getDistanceToLocation(currentLatitude, currentLongitude, destLatitude, destLongitude):
 	# Calculate distance in nautical miles between two lat/lon points using Haversine formula
-	if not radioPanel or not radioPanel.AircraftLatitude or not radioPanel.AircraftLongitude:
-		return 0.0
 		
 	R = 6371.0  # Earth radius in kilometers
-	lat1 = radioPanel.AircraftLatitude
-	lon1 = radioPanel.AircraftLongitude
+	lat1 = math.radians(currentLatitude)
+	lon1 = math.radians(currentLongitude)
 	lat2 = math.radians(destLatitude)
 	lon2 = math.radians(destLongitude)
 	dlon = lon2 - lon1
@@ -684,10 +684,10 @@ def radioTunedToFrequency(senderFrequency):
 	com2FrequencyMHz = radioPanel.COM2Frequency/1000000
 	#print("senderFrequency: ", senderFrequency, " com1FrequencyMHz: ", com1FrequencyMHz, " com2FrequencyMHz: ", com2FrequencyMHz, " COM1AudioSelectButton: ", radioPanel.COM1AudioSelectButton, " COM2AudioSelectButton: ", radioPanel.COM2AudioSelectButton)
 	if senderFrequency >= com1FrequencyMHz - 0.01 and senderFrequency <= com1FrequencyMHz + 0.01: 
-		print("Returning COM1 as tuned to " + str(senderFrequency))
+		#print("Returning COM1 as tuned to " + str(senderFrequency))
 		return "COM1"
 	elif senderFrequency >= com2FrequencyMHz - 0.01 and senderFrequency <= com2FrequencyMHz + 0.01:
-		print("Returning COM2 as tuned to " + str(senderFrequency))
+		#print("Returning COM2 as tuned to " + str(senderFrequency))
 		return "COM2"
 	elif (senderFrequency == 0):
 		print("Sender frequency is unknown, returning COM1 as tuned radio.")
@@ -1008,7 +1008,7 @@ def get_entity_voice(entityName):
 		return entityVoices[entityName]
 
 	# Fixed voices for certain entities
-	if entityName == "AVIATION ADVISOR":
+	if entityName == "ADVISOR":
 		chosen_voice = "en-US-GuyNeural"
 		entityVoices[entityName] = chosen_voice
 		return chosen_voice
@@ -1903,7 +1903,7 @@ def createRadioExchange():
 	airportSizeModifier = float(randomStation["airportSizeModifier"])
 	randomNum = float(random.randint(0, 100))
 	if RADIO_CHATTER_PROBABILITY * airportSizeModifier <= randomNum:
-		print("Skipping radio exchange generation due to probability setting (rnd=" + str(randomNum) + ", airportSizeModifier=" + str(airportSizeModifier) + ", RADIO_CHATTER_PROBABILITY * airportSizeModifier=" + str(RADIO_CHATTER_PROBABILITY * airportSizeModifier))
+		#print("Skipping radio exchange generation due to probability setting (rnd=" + str(randomNum) + ", airportSizeModifier=" + str(airportSizeModifier) + ", RADIO_CHATTER_PROBABILITY * airportSizeModifier=" + str(RADIO_CHATTER_PROBABILITY * airportSizeModifier))
 		chatterTimer = threading.Timer(RADIO_CHATTER_TIMER, createRadioExchange)
 		chatterTimer.start() 
 		return
@@ -2121,9 +2121,13 @@ def check_destination_approach_handoff():
 	if approach_handoff_done or tower_handoff_done:
 		return
 
+	
+
 	currentLatitude = round(math.degrees(radioPanel.AircraftLatitude), 5)
 	currentLongitude = round(math.degrees(radioPanel.AircraftLongitude), 5)
 	distanceToApproachStartWaypoint = getDistanceToLocation(currentLatitude, currentLongitude, aeroflySettings.approach_start_latitude, aeroflySettings.approach_start_longitude)
+
+	#print("Checking destination approach handoff conditions.distanceToApproachStartWaypoint=" + str(distanceToApproachStartWaypoint))
 
 	# Core conditions
 	close_enough  = distanceToApproachStartWaypoint < 15
