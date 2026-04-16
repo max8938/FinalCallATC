@@ -6,7 +6,7 @@
 TELEMETRY_SEND_INTERVAL=60.0 
 
 RADIO_CHATTER_TIMER = 40.0 # How often will system attempt to create radio chatter between other stations, in seconds
-RADIO_CHATTER_PROBABILITY = 70.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
+RADIO_CHATTER_PROBABILITY = 0.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
 # For smaller airports (less frequencies), the chatter will be generated a bit less often. Chatter on GUARD (121.5) is rare, and frequent on CENTER (134.0).
 
 # Which AI service to use
@@ -164,14 +164,52 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - When handing over to another frequency, use only the provided frequencies in the flight plan, do not make up any frequencies. If you need to handoff to a frequency that is not in the flight plan, handoff to the closest ATC service in the flight plan. For example, if the airport has tower but not ground ATC, tower will handle ground clearances as well.
 - An advisor of the pilot is available on 135.00 MHz frequency. They are not an ATC service, but can provide any kind of information to the pilot in an informal conversation.Their entity name is "ADVISOR".
 - If the pilot needs to do a readback of ATC instructions, call tool schedule_ATC_readback_check. Pass two parameters, entity name and the text of the readback check message. The readback check message should be something similar to '[Callsign], did you copy [instruction]?'. The ATC message to the pilot should be the instruction itself, without asking if the pilot copied it, for example 'Climb and maintain 5000 feet'. The readback check will be done separately by the tool, and will not be included in the ATC_VOICE variable. Do NOT include the readback text anywhere in the JSON output.
-- Put READBACK_REQUIRED variable to true in the response if you have scheduled readback check, false otherwise.
-- Pilot readback is required for taxi clearance, takeoff clearance, landing clearance, altitude change instructions, Route/heading instructions, Speed restrictions, Squawk code, Frequency changes, Hold instructions, ILS/approach clearance, Go-around instruction, and any instructions that are critical for flight safety.  If there are any other instructions that you think are critical for flight safety, you can also ask for readback for those. You must call tool schedule_ATC_readback_check for all of those.
-- Always format your response as JSON. Do not return readback checks in JSON output.
+- Pilot readback is required for taxi clearance, takeoff clearance, landing clearance, altitude change instructions, Route/heading instructions, Frequency changes. You must call tool schedule_ATC_readback_check for all of those.
+- Schedule only one readback check, for your last instruction that needs it. Assume that the pilot has read back all your previous instructions already.
+- Always format your response as JSON. Do not return readback checks in JSON output. Do not include ENTITY and ATC_VOICE more than once in your response.
 - Return exactly ONE JSON object per response. Never output multiple JSON objects. Never append anything before or after the JSON."""
 #- Ignore minor frequency deviations, for example consider 131.675 same as 131.68 and do not mention it."""
 ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = ""
 
+ATC_RESPONSE_FORMAT = {
+				"type": "json_schema",
+				"json_schema": {
+					"name": "atc_response",
+					"strict": True,
+					"schema": {
+						"type": "object",
+						"properties": {
+							"ATC_VOICE":   {"type": "string"},
+							"COMMENTS":    {"type": "string"},
+							"ENTITY":      {"type": "string"},
+							"FREQUENCY":   {"type": "string"},
+						},
+						"required": ["ATC_VOICE", "COMMENTS", "ENTITY", "FREQUENCY"],
+						"additionalProperties": False
+					}
+				}
+			}
+
 RADIO_CHATTER_GENERATION_PROMPT = "When I ask, you will generate a single exchange between a pilot and ATC. It should be relevant considering the description of the ATC frequency. It can be initiated either by the pilot or the ATC.  Output as JSON dictionary with keys MESSAGE1_ENTITY, MESSAGE2_ENTITY (names of the entities sending the messages, like: pilot, berlin ground, paris tower), MESSAGE1_TEXT and MESSAGE2_TEXT (contents of the radio messages). Do not put anything else in JSON. Use any worldwide airline if on big airport and random callsigns/flight numbers. For medium airports, use regional companies. For small airfields, use just GA callsigns. Do not repeat same requests from same entities. AFIS service does not issue clearances, only advisories. Speak only as the entity & airport in frequency description. If speaking to or as Center ATC, do not mention any locations or airport names, make an exchange where location does not matter, like flight level changes, etc."
+
+CHATTER_RESPONSE_FORMAT = {
+				"type": "json_schema",
+				"json_schema": {
+					"name": "atc_response",
+					"strict": True,
+					"schema": {
+						"type": "object",
+						"properties": {
+							"MESSAGE1_ENTITY":   {"type": "string"},
+							"MESSAGE1_TEXT":    {"type": "string"},
+							"MESSAGE2_ENTITY":      {"type": "string"},
+							"MESSAGE2_TEXT":   {"type": "string"},
+						},
+						"required": ["MESSAGE1_ENTITY", "MESSAGE1_TEXT", "MESSAGE2_ENTITY", "MESSAGE2_TEXT"],
+						"additionalProperties": False
+					}
+				}
+			}
 
 FEET_IN_METER = 3.28084
 
@@ -207,11 +245,11 @@ ATC_AI_TOOLS = [
 						"type": "object",
 						"properties": {
 							"entity": {
-								"type": "text",
+								"type": "string",
 								"description": "The entity who is sending this query",
 							},
 							"atc_query": {
-								"type": "text",
+								"type": "string",
 								"description": "ATC controller's question to pilot",
 							}
 						},
@@ -269,7 +307,7 @@ def round_half_up(n, decimals=0):
 	"""
 
 class ChatSession:
-	def __init__(self, system_prompt=ATC_INIT_INSTRUCTIONS, aiTools=None):
+	def __init__(self, responseFormat, system_prompt=ATC_INIT_INSTRUCTIONS, aiTools=None):
 		
 		if AI_TYPE == "DEEPSEEK":
 			self.client = OpenAI(api_key=DEEPSEEK_API_KEY, base_url="https://api.deepseek.com")
@@ -284,6 +322,8 @@ class ChatSession:
 		self.messages = [{"role": "system", "content": system_prompt}]
 				
 		self.tools = aiTools
+		self.responseFormat = responseFormat
+		
     
 	def add_user_message(self, message):
 		self.messages.append({"role": "user", "content": message})
@@ -298,7 +338,7 @@ class ChatSession:
 		self.messages = [{"role": "system", "content": system_prompt}]
 		
     
-	def get_response(self, orProviderSort=OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT):
+	def get_response(self, toolsAllowed, orProviderSort=OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT):
 		if AI_TYPE == "DEEPSEEK":
 			model=DEEPSEEK_MODEL
 		elif AI_TYPE == "OPENROUTER":
@@ -308,12 +348,18 @@ class ChatSession:
 		else:
 			print("Unknown AI_TYPE ", AI_TYPE, ", not sending message to AI.")
 			return
+
+		aiTools = None
+		if toolsAllowed:
+			aiTools = self.tools
+
 		
 		start = time.time()	
 		response = self.client.chat.completions.create(
 			model=model,
 			messages=self.messages,
-			tools=self.tools,
+			response_format=self.responseFormat,
+			tools=aiTools,
 			extra_body={
 				"provider": {
 					"sort": orProviderSort,
@@ -376,7 +422,8 @@ def handle_tool_calls(parsed_response):
 	global chatSession
 	chatSession.messages.append(tool_responses[0])
 	#print("all messages: ", chatSession.messages)
-	return chatSession.get_response(OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT)
+	toolsAllowed = False # Do not allow calling more tools
+	return chatSession.get_response(toolsAllowed, OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT)
     
 
 def call_function(name, args):
@@ -769,8 +816,9 @@ def radiant_to_heading(r):
     return heading % 360
 
 def sendMessageToAI(cleanedtext):
+	print("sendMessageToAI: ", cleanedtext)
 	timestamp = datetime.now().strftime("%H:%M:%S")
-	chatSession.add_user_message(timestamp + " " + cleanedtext)
+	#chatSession.add_user_message(timestamp + " " + cleanedtext)
 	currentHeading = ""
 	currentLocation = ""
 	currentAltitude = 0.0
@@ -819,10 +867,10 @@ def sendMessageToAI(cleanedtext):
 	
 	
 	
-	chatSession.add_user_message(timestamp + " " + telemetryMessage) # this sends telemetry together with voice
+	chatSession.add_user_message(timestamp + " " + cleanedtext + ";" + telemetryMessage) # this sends telemetry together with voice
 	
-	
-	response = chatSession.get_response(OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT)
+	toolsAllowed = True
+	response = chatSession.get_response(toolsAllowed, OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT)
 	
 	timestamp = datetime.now().strftime("%H:%M:%S")
 	print(timestamp+" sendMessageToAI response from received speech: ", response)
@@ -864,7 +912,7 @@ def startATCSession():
 		radioPanel.start_polling(GAME_VARIABLES_POLLING_INTERVAL)
 
 	loadAeroflySettings() # reload Aerofly settings
-	chatSession = ChatSession(ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, ATC_AI_TOOLS)
+	chatSession = ChatSession(ATC_RESPONSE_FORMAT, ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, ATC_AI_TOOLS)
 	deleteRadioLogFiles()
 	entityVoices = {}
 	print("AI ATC SESSION START command")
@@ -895,7 +943,7 @@ def resetATCSession():
 
 	loadAeroflySettings() # reload Aerofly settings
 	#chatSession.reset_session()
-	chatSession = ChatSession(ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, ATC_AI_TOOLS)
+	chatSession = ChatSession(ATC_RESPONSE_FORMAT, ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, ATC_AI_TOOLS)
 	deleteRadioLogFiles()
 	entityVoices = {}
 	print("AI ATC SESSION RESET command")
@@ -1934,10 +1982,11 @@ def createRadioExchange():
 		trafficChatMessageCnt = 0
 
 	if not trafficChatSession:
-		trafficChatSession = ChatSession(RADIO_CHATTER_GENERATION_PROMPT, aiTools=None)
+		trafficChatSession = ChatSession(CHATTER_RESPONSE_FORMAT, RADIO_CHATTER_GENERATION_PROMPT, aiTools=None)
 
 	trafficChatSession.add_user_message(prompt)
-	response = trafficChatSession.get_response(OPENROUTER_PROVIDER_SORT_PRICE) # We do not care how responsive AI is for chatter generation, so cheaper is better
+	toolsAllowed = False
+	response = trafficChatSession.get_response(toolsAllowed, OPENROUTER_PROVIDER_SORT_PRICE) # We do not care how responsive AI is for chatter generation, so cheaper is better
 	trafficChatMessageCnt += 1
 
 	"""
