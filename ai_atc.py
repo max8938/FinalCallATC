@@ -6,7 +6,7 @@
 TELEMETRY_SEND_INTERVAL=60.0 
 
 RADIO_CHATTER_TIMER = 40.0 # How often will system attempt to create radio chatter between other stations, in seconds
-RADIO_CHATTER_PROBABILITY = 0.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
+RADIO_CHATTER_PROBABILITY = 70.0 # 0.0-100.0 (in %), chance of radio chatter being generated each RADIO_CHATTER_TIMER interval. Set to 0.0 to disable.
 # For smaller airports (less frequencies), the chatter will be generated a bit less often. Chatter on GUARD (121.5) is rare, and frequent on CENTER (134.0).
 
 # Which AI service to use
@@ -26,6 +26,7 @@ OPENAI_MODEL = "gpt-4.1-mini"
 #OPENROUTER_MODEL = "deepseek/deepseek-v3.1-terminus"
 OPENROUTER_MODEL = "google/gemini-3-flash-preview" # seems even better than deepseek for ATC, and faster
 #OPENROUTER_MODEL = "google/gemini-2.5-flash"
+#OPENROUTER_MODEL = "google/gemini-3.1-flash-lite-preview"
 
 # If using Openrouter, which providers to prefer:
 OPENROUTER_PROVIDER_SORT_THROUGHOUTPUT = "throughput" 
@@ -149,6 +150,7 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - Answer only as entity on the frequency, not as another entity, and always on the same frequency that I sent the message on. No exceptions. 
 - If I address you as a wrong entity, for example I transmit on tower frequency and address you as ground, you will always warn me.
 - Put the frequency of the sender in FREQUENCY variable, or 0 if unknown. 
+- If the instruction you give to the pilot requires a readback, put YES in READBACK variable, or NO otherwise.
 - If I deviate from ATC instructions behave as real ATC would. 
 - If any numbers are typically read digit by digit, write them using letters, not digits.  
 - Ignore small mispronunciations on my side. 
@@ -163,12 +165,17 @@ ATC_INIT_INSTRUCTIONS="""I want you to roleplay ATC in my flight sim. I will sen
 - Center ATC frequency is 134.00 MHz. Guard frequency is 121.50 MHz. 
 - When handing over to another frequency, use only the provided frequencies in the flight plan, do not make up any frequencies. If you need to handoff to a frequency that is not in the flight plan, handoff to the closest ATC service in the flight plan. For example, if the airport has tower but not ground ATC, tower will handle ground clearances as well.
 - An advisor of the pilot is available on 135.00 MHz frequency. They are not an ATC service, but can provide any kind of information to the pilot in an informal conversation.Their entity name is "ADVISOR".
-- If the pilot needs to do a readback of ATC instructions, call tool schedule_ATC_readback_check. Pass two parameters, entity name and the text of the readback check message. The readback check message should be something similar to '[Callsign], did you copy [instruction]?'. The ATC message to the pilot should be the instruction itself, without asking if the pilot copied it, for example 'Climb and maintain 5000 feet'. The readback check will be done separately by the tool, and will not be included in the ATC_VOICE variable. Do NOT include the readback text anywhere in the JSON output.
-- Pilot readback is required for taxi clearance, takeoff clearance, landing clearance, altitude change instructions, Route/heading instructions, Frequency changes. You must call tool schedule_ATC_readback_check for all of those.
-- Schedule only one readback check, for your last instruction that needs it. Assume that the pilot has read back all your previous instructions already.
-- Always format your response as JSON. Do not return readback checks in JSON output. Do not include ENTITY and ATC_VOICE more than once in your response.
+- Always format your response as JSON. 
 - Return exactly ONE JSON object per response. Never output multiple JSON objects. Never append anything before or after the JSON."""
-#- Ignore minor frequency deviations, for example consider 131.675 same as 131.68 and do not mention it."""
+
+""" OLD
+#- Ignore minor frequency deviations, for example consider 131.675 same as 131.68 and do not mention it.
+- If the pilot needs to do a readback of ATC instructions, call tool schedule_ATC_readback_check. Pass two parameters, entity name and the text of the readback check message. The readback check message should be something similar to '[Callsign], did you copy [instruction]?'. The ATC message to the pilot should be the instruction itself, without asking if the pilot copied it, for example 'Climb and maintain 5000 feet'. The readback check will be done separately by the tool, and will not be included in the ATC_VOICE variable. Do NOT include the readback text anywhere in the JSON output.
+- Pilot readback is required for taxi clearance, takeoff clearance, landing clearance, altitude change instructions, Route/heading instructions, Frequency changes. You must call tool schedule_ATC_readback_check for all of those. Do not schedule pilot readback checks for instructions that do not require readback or for reporting future actions like being ready for departure or reaching altitude. Do not schedule readback checks for every instruction, only for the ones listed above. 
+- Schedule only one readback check, for your last instruction that needs it. Assume that the pilot has read back all your previous instructions already.
+"""
+
+
 ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN = ""
 
 ATC_RESPONSE_FORMAT = {
@@ -183,8 +190,9 @@ ATC_RESPONSE_FORMAT = {
 							"COMMENTS":    {"type": "string"},
 							"ENTITY":      {"type": "string"},
 							"FREQUENCY":   {"type": "string"},
+							"READBACK":		{"type": "string"},
 						},
-						"required": ["ATC_VOICE", "COMMENTS", "ENTITY", "FREQUENCY"],
+						"required": ["ATC_VOICE", "COMMENTS", "ENTITY", "FREQUENCY", "READBACK"],
 						"additionalProperties": False
 					}
 				}
@@ -206,6 +214,24 @@ CHATTER_RESPONSE_FORMAT = {
 							"MESSAGE2_TEXT":   {"type": "string"},
 						},
 						"required": ["MESSAGE1_ENTITY", "MESSAGE1_TEXT", "MESSAGE2_ENTITY", "MESSAGE2_TEXT"],
+						"additionalProperties": False
+					}
+				}
+			}
+
+READBACK_RESPONSE_FORMAT = {
+				"type": "json_schema",
+				"json_schema": {
+					"name": "atc_response",
+					"strict": True,
+					"schema": {
+						"type": "object",
+						"properties": {
+							"READBACK_REQUEST":   {"type": "string"},
+							
+							
+						},
+						"required": ["READBACK_REQUEST"],
 						"additionalProperties": False
 					}
 				}
@@ -246,11 +272,11 @@ ATC_AI_TOOLS = [
 						"properties": {
 							"entity": {
 								"type": "string",
-								"description": "The entity who is sending this query",
+								"description": "The ATC entity who is reminding the pilot about the readback.",
 							},
 							"atc_query": {
 								"type": "string",
-								"description": "ATC controller's question to pilot",
+								"description": "The readback check message from ATC to pilot, similar to '[Callsign], did you copy [instruction]?'.",
 							}
 						},
 						"required": ["atc_query"]
@@ -445,35 +471,35 @@ def get_heading_to_approach_point(current_latitude, current_longitude):
 
 # AI tool
 def schedule_ATC_readback_check(entity, atc_query):
-	print(f"TOOL CALL: Scheduling ATC readback check with text: {atc_query}")
+	print(f"Scheduling ATC readback check with text: {atc_query}")
 
-	# Set a timer to check for pilot's readback in 30 seconds
+	# Set a timer to check for pilot's readback
 	global readbackCheckTimer
 	if readbackCheckTimer and readbackCheckTimer.is_alive():
 		readbackCheckTimer.cancel()  # Cancel any existing timer
 	
-	readbackCheckTimer = threading.Timer(50.0, check_pilot_readback, args=[entity, atc_query])
+	readbackCheckTimer = threading.Timer(50.0, doReadbackCheck, args=[entity, atc_query])
 	readbackCheckTimer.start()
 
-def check_pilot_readback(entity, atc_query):
-	# This function will be called after the timer expires to check if the pilot has acknowledged the ATC instructions
-	print("Reminding the pilot to readback ATC instructions...")
+
+
+
+def doReadbackCheck(entity, atc_query):
+	READBACK_CHATTER_GENERATION_PROMPT = "You are an ATC controller in a flight simulator."
+	prompt = "You are ATC controller '" + entity + "' and gave the pilot the following instructions: '" + atc_query + "'. The pilot did not read it back. Generate ATC's question to pilot asking for the readback, for example in format similar to: '[Callsign], did you copy [instruction]?' Respond with JSON object with field READBACK_REQUEST (containing your question)."
 	
-	atc_query_json = {
-		"ENTITY": entity,
-		"ATC_VOICE": atc_query
-		}
-	# convert to json string
-	atc_query_json = json.dumps(atc_query_json)
-	global chatSession
-	chatSession.add_assistant_message(atc_query_json)  # Add a message to the chat session to log the ATC query for readback
+	readbackChatSession = ChatSession(READBACK_RESPONSE_FORMAT, READBACK_CHATTER_GENERATION_PROMPT, aiTools=None)
+
+	readbackChatSession.add_user_message(prompt)
+	toolsAllowed = False
+	response = readbackChatSession.get_response(toolsAllowed, OPENROUTER_PROVIDER_SORT_PRICE) # We do not care how responsive AI is for this, so cheaper is better
 	
-	#global communicationWithAIInProgress
-	#communicationWithAIInProgress = True
-	#time.sleep(5) # Short delay to ensure the random radio chatter does not overlap with this important message
-	sayWithRadioEffect(entity.upper(), atc_query, "COM1", True, "atc_to_user") # For simplicity, not checking if COM1 or COM2 is tuned to the frequency, just playing the message with radio effect on COM1. This can be improved by keeping track of which frequency the ATC is communicating on and checking if the pilot is tuned to that frequency.
-	#communicationWithAIInProgress = False
-	
+	readbackGenerationResponse = ReadbackGenerationResponse(response)
+
+	if readbackGenerationResponse and readbackGenerationResponse.readbackRequest:
+		print("Generated readback request: ", entity.upper(), ": ", readbackGenerationResponse.readbackRequest)
+		
+	sayWithRadioEffect(entity.upper(), readbackGenerationResponse.readbackRequest, "COM1", True, "atc_to_user")
 
 
 def getHeadingToLocation(currentLatitude, currentLongitude, destLatitude, destLongitude):
@@ -893,6 +919,9 @@ def sendMessageToAI(cleanedtext):
 	global communicationWithAIInProgress
 	communicationWithAIInProgress = False
 
+	if atcResponse.READBACK == "YES":
+		schedule_ATC_readback_check(atcResponse.ENTITY, atcResponse.ATC_VOICE)
+
 
 
 def startATCSession():
@@ -912,7 +941,7 @@ def startATCSession():
 		radioPanel.start_polling(GAME_VARIABLES_POLLING_INTERVAL)
 
 	loadAeroflySettings() # reload Aerofly settings
-	chatSession = ChatSession(ATC_RESPONSE_FORMAT, ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, ATC_AI_TOOLS)
+	chatSession = ChatSession(ATC_RESPONSE_FORMAT, ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, None) #ATC_AI_TOOLS)
 	deleteRadioLogFiles()
 	entityVoices = {}
 	print("AI ATC SESSION START command")
@@ -943,7 +972,7 @@ def resetATCSession():
 
 	loadAeroflySettings() # reload Aerofly settings
 	#chatSession.reset_session()
-	chatSession = ChatSession(ATC_RESPONSE_FORMAT, ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, ATC_AI_TOOLS)
+	chatSession = ChatSession(ATC_RESPONSE_FORMAT, ATC_INIT_INSTRUCTIONS_WITH_FLIGHT_PLAN, None) #ATC_AI_TOOLS)
 	deleteRadioLogFiles()
 	entityVoices = {}
 	print("AI ATC SESSION RESET command")
@@ -1083,7 +1112,7 @@ class ATCResponse:
 	COMMENTS: str = ""
 	ENTITY: str = ""
 	FREQUENCY: float = 0.0
-	READBACK_TIMEOUT: int = 0
+	READBACK: str = ""
 	
 	def __init__(self, aiResponse):
 		data = None
@@ -1103,7 +1132,7 @@ class ATCResponse:
 		self.COMMENTS=data.get("COMMENTS", "")
 		self.ENTITY=data.get("ENTITY", "")
 		self.FREQUENCY=data.get("FREQUENCY", 0)
-		self.READBACK_TIMEOUT=data.get("READBACK_TIMEOUT", 0)
+		self.READBACK=data.get("READBACK", 0)
 
 class AITrafficGenerationResponse:
 	message1Entity: str = ""
@@ -1128,6 +1157,27 @@ class AITrafficGenerationResponse:
 		self.message1Text=data.get("MESSAGE1_TEXT", "")
 		self.message2Entity=data.get("MESSAGE2_ENTITY", "")
 		self.message2Text=data.get("MESSAGE2_TEXT", "")
+
+class ReadbackGenerationResponse:
+	readbackRequest: str = ""
+	entity: str = ""
+	
+	def __init__(self, aiResponse):
+		data = None
+		try:
+			if aiResponse.startswith("```json"):
+				aiResponse = aiResponse[len("```json"):]
+			if aiResponse.endswith("```"):
+				aiResponse = aiResponse[:-3]
+			data = json.loads(aiResponse)
+						
+		except json.JSONDecodeError:
+			print("Received non-JSON data:", aiResponse)
+			return None
+		
+		self.readbackRequest=data.get("READBACK_REQUEST", "")
+		self.entity=data.get("ENTITY", "")
+
 
 def printATCInstructions(instructions, aiComment, withTimestamp):
 	
